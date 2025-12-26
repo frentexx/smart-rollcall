@@ -124,10 +124,10 @@
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
         document.head.appendChild(Object.assign(document.createElement('link'), {rel: 'manifest', href: URL.createObjectURL(manifestBlob)}));
 
-        // 🔴 版本號更新為 debug，確保手機更新快取
+        // 🔴 版本號更新為 2.3，強制更新 Service Worker
         if ('serviceWorker' in navigator) {
             const swCode = `
-                const CACHE_NAME = 'rollcall-v2.2-debug-${new Date().getTime()}'; 
+                const CACHE_NAME = 'rollcall-v2.3-debug-${new Date().getTime()}'; 
                 self.addEventListener('install', e => self.skipWaiting());
                 self.addEventListener('activate', e => {
                     e.waitUntil(
@@ -182,7 +182,7 @@
                 <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
                 <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
                 <!-- 🔴 新增：Debug 版本號 -->
-                <p class="text-xs text-red-500 mt-4 font-bold">System Ver: 2.2 (Debug Mode)</p>
+                <p class="text-xs text-red-500 mt-4 font-bold">System Ver: 2.3 (Final Debug)</p>
             </div>
             
             <!-- Google 登入按鈕 -->
@@ -366,7 +366,7 @@
             .catch((error) => {
                 console.error("Redirect Error:", error);
                 // 讓手機跳出錯誤視窗，這就是解謎關鍵
-                alert("🔴 登入錯誤偵錯 🔴\n\nCode: " + error.code + "\n\nMsg: " + error.message);
+                alert("🔴 Redirect 回傳錯誤 🔴\n\nCode: " + error.code + "\n\nMsg: " + error.message);
             });
 
         // === 1. Google 登入邏輯 (含網域檢查) ===
@@ -402,10 +402,26 @@
             }
         });
 
-        // 改用 Redirect 模式
+        // 🔴 改用 Redirect 模式 + 啟動偵錯
         window.loginWithGoogle = function() {
+            // 1. 檢查 sessionStorage 是否可用 (判斷是否為無痕模式)
+            try {
+                sessionStorage.setItem('test', '1');
+                sessionStorage.removeItem('test');
+            } catch (e) {
+                alert("🔴 瀏覽器不支援 Storage (可能是無痕模式或 Cookies 被封鎖)，無法使用 Google 登入。");
+                return;
+            }
+
+            // 2. 顯示啟動訊息
+            alert("正在啟動 Google 登入...");
+
             const provider = new GoogleAuthProvider();
-            signInWithRedirect(auth, provider);
+            signInWithRedirect(auth, provider)
+                .catch((error) => {
+                    // 3. 如果連啟動都失敗，這裡會抓到
+                    alert("🔴 啟動失敗 🔴\n\nCode: " + error.code + "\n\nMsg: " + error.message);
+                });
         }
 
         window.logout = function() {
@@ -456,7 +472,7 @@
             monday.setDate(diffToMon);
             monday.setHours(0,0,0,0);
             const days = [];
-            for (let i = 0; i < 7; i++) {
+            for (let i = 7; i < 7; i++) {
                 const d = new Date(monday);
                 d.setDate(monday.getDate() + i);
                 days.push(d.toISOString().split('T')[0]);
