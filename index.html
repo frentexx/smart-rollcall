@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智慧校園點名系統 PWA</title>
+    <title>小清華專屬課後點名系統 PWA</title>
     <meta name="theme-color" content="#3b82f6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,28 +19,15 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         
-        /* LINE 引導遮罩樣式 (Ver 5.3 修正版) */
+        /* LINE 引導遮罩樣式 */
         #line-blocker {
             display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.92);
-            z-index: 9999;
-            color: white;
-            text-align: center;
-            padding-top: 150px;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.92); z-index: 9999;
+            color: white; text-align: center; padding-top: 150px;
         }
-        /* 右上角箭頭 (一般 Android) */
-        .arrow-top-right {
-            position: absolute; top: 20px; right: 20px; font-size: 3rem; color: #fbbf24;
-            animation: bounce-top 1.5s infinite;
-        }
-        /* 右下角箭頭 (Vivo / iOS) */
-        .arrow-bottom-right {
-            position: absolute; bottom: 40px; right: 20px; font-size: 3rem; color: #fbbf24;
-            transform: rotate(180deg); /* 箭頭朝下 */
-            animation: bounce-bottom 1.5s infinite;
-        }
+        .arrow-top-right { position: absolute; top: 20px; right: 20px; font-size: 3rem; color: #fbbf24; animation: bounce-top 1.5s infinite; }
+        .arrow-bottom-right { position: absolute; bottom: 40px; right: 20px; font-size: 3rem; color: #fbbf24; transform: rotate(180deg); animation: bounce-bottom 1.5s infinite; }
         @keyframes bounce-top { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
         @keyframes bounce-bottom { 0%, 100% { transform: rotate(180deg) translateY(0); } 50% { transform: rotate(180deg) translateY(10px); } }
 
@@ -75,21 +62,14 @@
     </style>
 
     <script>
-        // 🟢 LINE 瀏覽器自動處理腳本 (Ver 5.3)
         (function() {
             const ua = navigator.userAgent || navigator.vendor || window.opera;
-            // 判斷是否為 LINE 內建瀏覽器
             if (ua.indexOf("Line") > -1) {
-                // 1. 嘗試自動跳轉：檢查網址是否已包含 magic parameter
                 if (window.location.search.indexOf("openExternalBrowser=1") === -1) {
-                    // 如果沒有，加上參數並強制重整，觸發 LINE 的自動跳轉機制
                     var separator = window.location.search ? "&" : "?";
                     window.location.href = window.location.href + separator + "openExternalBrowser=1";
-                    return; // 停止執行後續代碼，等待跳轉
+                    return;
                 }
-
-                // 2. 如果程式執行到這裡，代表自動跳轉失敗（使用者按了取消，或不支援）
-                // 顯示全螢幕遮罩，引導手動開啟
                 document.write(`
                     <div id="line-blocker" style="display:block;">
                         <div class="arrow-top-right">⤴</div>
@@ -97,7 +77,6 @@
                         <h2 class="text-2xl font-bold mb-4">⚠️ 無法在 LINE 中使用</h2>
                         <p class="mb-2 px-4 text-lg">系統偵測到您正在使用 LINE 瀏覽器</p>
                         <p class="mb-8 px-4 text-gray-300 text-sm">這會導致 Google 登入驗證失敗</p>
-                        
                         <div class="bg-gray-800 p-4 rounded-xl mx-4 border border-yellow-500">
                             <p class="text-yellow-400 font-bold text-lg mb-2">👇 請依照指示操作 👇</p>
                             <p class="text-white">點擊螢幕 <span class="text-yellow-300 font-bold text-xl">右上角</span> 或 <span class="text-yellow-300 font-bold text-xl">右下角</span> 的選單按鈕</p>
@@ -112,7 +91,7 @@
             }
         })();
 
-        const manifest = { "name": "智慧點名系統", "short_name": "點名系統", "start_url": ".", "display": "standalone", "background_color": "#f3f4f6", "theme_color": "#3b82f6", "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/3135/3135768.png", "sizes": "192x192", "type": "image/png"}] };
+        const manifest = { "name": "小清華專屬課後點名系統", "short_name": "小清華點名", "start_url": ".", "display": "standalone", "background_color": "#f3f4f6", "theme_color": "#3b82f6", "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/3135/3135768.png", "sizes": "192x192", "type": "image/png"}] };
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
         document.head.appendChild(Object.assign(document.createElement('link'), {rel: 'manifest', href: URL.createObjectURL(manifestBlob)}));
     </script>
@@ -122,7 +101,7 @@
     <header class="bg-blue-600 text-white p-3 shadow-md sticky top-0 z-40">
         <div class="flex justify-between items-center">
             <div class="flex flex-col">
-                <h1 class="text-lg font-bold">智慧校園點名系統</h1>
+                <h1 class="text-lg font-bold">小清華專屬課後點名系統</h1>
                 <p class="text-xs opacity-80" id="current-user-info">請先登入</p>
             </div>
             <div class="flex items-center gap-2">
@@ -170,9 +149,9 @@
         <div id="view-login" class="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
             <div class="text-center mb-8">
                 <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl"><i class="fas fa-school"></i></div>
-                <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
+                <h2 class="text-2xl font-bold text-gray-800">小清華專屬課後點名系統</h2>
                 <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
-                <p class="text-xs text-gray-400 mt-4">System Ver: 5.3 (Auto-Jump)</p>
+                <p class="text-xs text-gray-400 mt-4">System Ver: 5.4 (Data Clear)</p>
             </div>
             
             <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full max-w-xs py-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center gap-3">
@@ -222,6 +201,7 @@
         <!-- 頁面 4: 系統設定 -->
         <div id="view-settings" class="hidden page-view">
             <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-cog text-gray-500 mr-2"></i>系統設定</h2>
+            
             <div class="bg-white p-4 rounded-lg shadow mb-6 border-l-4 border-indigo-500">
                 <h3 class="font-bold text-gray-700 mb-2">班級管理</h3>
                 <div class="flex gap-2 mb-3">
@@ -233,6 +213,7 @@
                     <button onclick="deleteCurrentClass()" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200">刪除此班級 (含名單與紀錄)</button>
                 </div>
             </div>
+
             <div class="bg-white p-4 rounded-lg shadow mb-6">
                 <h3 class="font-bold text-gray-700 mb-2">匯入學生名單 (CSV)</h3>
                 <p class="text-xs text-gray-500 mb-1">將匯入至：<span id="import-target-class" class="font-bold text-blue-600">未選擇班級</span></p>
@@ -241,12 +222,23 @@
                     <button onclick="importCSV()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm whitespace-nowrap">匯入</button>
                 </div>
             </div>
-            <div class="bg-white p-4 rounded-lg shadow">
+            
+            <div class="bg-white p-4 rounded-lg shadow mb-6">
                 <h3 class="font-bold text-gray-700 mb-2">Telegram 推播設定 (全校通用)</h3>
                 <div class="space-y-2">
                     <input type="text" id="tg-token" placeholder="Bot Token" class="w-full border p-2 rounded text-sm">
                     <input type="text" id="tg-chatid" placeholder="Chat ID" class="w-full border p-2 rounded text-sm">
                     <button onclick="saveTgSettings()" class="w-full bg-blue-100 text-blue-600 py-2 rounded text-sm font-bold">儲存至雲端</button>
+                </div>
+            </div>
+
+            <!-- 資料清除區塊 (New) -->
+            <div class="bg-white p-4 rounded-lg shadow border-2 border-red-500">
+                <h3 class="font-bold text-red-600 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>危險區域 - 資料清除</h3>
+                <p class="text-xs text-gray-500 mb-3">請謹慎操作，刪除後無法復原。</p>
+                <div class="flex flex-col gap-2">
+                    <button onclick="clearAllAttendance()" class="w-full bg-red-600 text-white py-2 rounded text-sm font-bold hover:bg-red-700">清空所有點名紀錄</button>
+                    <button onclick="clearAllLeaveRequests()" class="w-full bg-red-600 text-white py-2 rounded text-sm font-bold hover:bg-red-700">清空所有請假紀錄</button>
                 </div>
             </div>
         </div>
@@ -442,6 +434,56 @@
             showLoading(false);
             showToast("班級已刪除");
             currentClassId = null;
+        }
+
+        // 🔴 新增：清空資料庫功能 (使用 Batch 分批刪除)
+        async function deleteAllDocuments(collectionName) {
+            showLoading(true);
+            const colRef = collection(db, collectionName);
+            const snapshot = await getDocs(colRef);
+            
+            if (snapshot.size === 0) {
+                showLoading(false);
+                showToast("目前沒有資料可刪除");
+                return;
+            }
+
+            const batchSize = 500; 
+            const batches = [];
+            let currentBatch = writeBatch(db);
+            let count = 0;
+
+            snapshot.docs.forEach((doc, index) => {
+                currentBatch.delete(doc.ref);
+                count++;
+                if (count % batchSize === 0) {
+                    batches.push(currentBatch.commit());
+                    currentBatch = writeBatch(db);
+                }
+            });
+            
+            if (count % batchSize !== 0) {
+                batches.push(currentBatch.commit());
+            }
+
+            await Promise.all(batches);
+            showLoading(false);
+            showToast(`已清空 ${collectionName} 共 ${snapshot.size} 筆資料`);
+            
+            if (collectionName === 'attendance') loadRollCallData();
+            if (collectionName === 'leave_requests') loadAuditList();
+        }
+
+        window.clearAllAttendance = function() {
+            if (confirm("⚠️ 警告：確定要清空「所有」點名紀錄嗎？此動作無法復原！")) {
+                deleteAllDocuments("attendance");
+            }
+        }
+
+        window.clearAllLeaveRequests = function() {
+            if (confirm("⚠️ 警告：確定要清空「所有」請假申請紀錄嗎？此動作無法復原！")) {
+                deleteAllDocuments("leave_requests");
+            }
         }
 
         window.setRole = function(role) {
