@@ -124,11 +124,24 @@
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
         document.head.appendChild(Object.assign(document.createElement('link'), {rel: 'manifest', href: URL.createObjectURL(manifestBlob)}));
 
+        // 🔴 修改：加入版本號 timestamp 以強制更新 Service Worker
         if ('serviceWorker' in navigator) {
             const swCode = `
+                const CACHE_NAME = 'rollcall-v2-${new Date().getTime()}'; 
                 self.addEventListener('install', e => self.skipWaiting());
-                self.addEventListener('activate', e => self.clients.claim());
-                self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+                self.addEventListener('activate', e => {
+                    e.waitUntil(
+                        caches.keys().then(keys => Promise.all(
+                            keys.map(key => {
+                                if(key !== CACHE_NAME) return caches.delete(key);
+                            })
+                        ))
+                    );
+                    self.clients.claim();
+                });
+                self.addEventListener('fetch', e => e.respondWith(
+                    fetch(e.request).catch(() => caches.match(e.request))
+                ));
             `;
             navigator.serviceWorker.register(URL.createObjectURL(new Blob([swCode], {type: 'application/javascript'}))).catch(console.log);
         }
@@ -168,6 +181,8 @@
                 </div>
                 <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
                 <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
+                <!-- 🔴 新增：顯示版本號，方便確認是否有更新 -->
+                <p class="text-xs text-gray-400 mt-4">System Ver: 2.1 (Redirect Mode)</p>
             </div>
             
             <!-- Google 登入按鈕 -->
@@ -313,11 +328,11 @@
         <div class="nav-item" onclick="switchTab('view-settings', this)"><i class="fas fa-sliders-h"></i><span>設定</span></div>
     </nav>
 
-   <!-- Firebase Logic -->
+    <!-- Firebase Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, collection, addDoc, updateDoc, setDoc, query, where, onSnapshot, Timestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        // 🔴 修改處 1: 引入 signInWithRedirect (移除 signInWithPopup)
+        // 引入 signInWithRedirect
         import { getAuth, signInWithRedirect, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // === Firebase 配置 (MyRollCall) ===
@@ -359,7 +374,6 @@
                 } else {
                     console.warn("網域錯誤:", user.email);
                     showToast('錯誤：限 @ppsh.ptc.edu.tw 網域使用', true);
-                    // 延遲登出讓使用者看到錯誤訊息
                     setTimeout(() => signOut(auth), 2000);
                 }
             } else {
@@ -373,13 +387,10 @@
             }
         });
 
-        // 🔴 修改處 2: 改用 Redirect 模式
+        // 改用 Redirect 模式，解決 403 disallowed_useragent
         window.loginWithGoogle = function() {
             const provider = new GoogleAuthProvider();
-            // Redirect 模式下通常不需要 setCustomParameters(prompt)，因為會直接跳轉
-            // 但保留也無妨，重點是下面這行：
             signInWithRedirect(auth, provider);
-            // 注意：Redirect 模式沒有 .catch，錯誤處理通常由 onAuthStateChanged 處理
         }
 
         window.logout = function() {
