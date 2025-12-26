@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智慧校園點名系統 PWA (校園版)</title>
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 字體設定與樣式 -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+            -webkit-tap-highlight-color: transparent;
+            padding-bottom: 80px; /* 為底部導覽列預留空間 */
+        }
+
+        /* 滾動條優化 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        /* 週報表表格樣式 */
+        .weekly-table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+        .weekly-table {
+            min-width: 800px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .weekly-table th, .weekly-table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+        .weekly-table th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+        }
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            background-color: #ffffff;
+            z-index: 10;
+            border-right: 2px solid #e2e8f0;
+        }
+        
+        /* 狀態顏色 */
+        .status-cell.Present { background-color: #d1fae5; color: #065f46; }
+        .status-cell.Absent { background-color: #fee2e2; color: #991b1b; }
+        .status-cell.Late { background-color: #fef3c7; color: #92400e; }
+        .status-cell.Leave { background-color: #dbeafe; color: #1e40af; }
+
+        /* 預警列樣式 */
+        .warning-row { background-color: #fff1f2 !important; }
+        .warning-row .sticky-col { background-color: #fff1f2 !important; border-left: 4px solid #ef4444; }
+        .warning-badge {
+            display: inline-block; background-color: #ef4444; color: white;
+            font-size: 0.7rem; padding: 2px 6px; border-radius: 999px;
+            margin-left: 4px; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        /* 動畫 */
+        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 底部導覽列 */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: white; display: flex; justify-content: space-around;
+            padding: 10px 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 50;
+        }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            color: #94a3b8; font-size: 0.75rem; cursor: pointer; transition: color 0.2s;
+        }
+        .nav-item.active { color: #3b82f6; }
+        .nav-item i { font-size: 1.25rem; margin-bottom: 4px; }
+
+        /* 點名方塊 */
+        .rollcall-btn {
+            aspect-ratio: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; border-radius: 12px;
+            cursor: pointer; transition: transform 0.1s; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .rollcall-btn:active { transform: scale(0.95); }
+        .rc-Present { background: #10B981; color: white; }
+        .rc-Absent { background: #EF4444; color: white; }
+        .rc-Late { background: #F59E0B; color: white; }
+        .rc-Leave { background: #3B82F6; color: white; }
+        
+        .loading-overlay {
+            position: fixed; inset: 0; background: rgba(255,255,255,0.8);
+            display: flex; justify-content: center; align-items: center; z-index: 100;
+        }
+    </style>
+
+    <!-- PWA Manifest & Service Worker Injection -->
+    <script>
+        const manifest = {
+            "name": "智慧點名系統",
+            "short_name": "點名系統",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#f3f4f6",
+            "theme_color": "#3b82f6",
+            "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/3135/3135768.png", "sizes": "192x192", "type": "image/png"}]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        document.head.appendChild(Object.assign(document.createElement('link'), {rel: 'manifest', href: URL.createObjectURL(manifestBlob)}));
+
+        if ('serviceWorker' in navigator) {
+            const swCode = `
+                self.addEventListener('install', e => self.skipWaiting());
+                self.addEventListener('activate', e => self.clients.claim());
+                self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+            `;
+            navigator.serviceWorker.register(URL.createObjectURL(new Blob([swCode], {type: 'application/javascript'}))).catch(console.log);
+        }
+    </script>
+</head>
+<body>
+
+    <!-- 頂部標題列 -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-40">
+        <div>
+            <h1 class="text-lg font-bold">智慧校園點名系統</h1>
+            <p class="text-xs opacity-80" id="current-user-info">請先登入</p>
+        </div>
+        <div class="flex items-center space-x-3">
+             <button onclick="logout()" id="logout-btn" class="hidden text-xs bg-blue-700 px-3 py-1 rounded hover:bg-blue-800">登出</button>
+        </div>
+    </header>
+
+    <!-- 載入動畫 -->
+    <div id="loading" class="loading-overlay hidden">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+    </div>
+
+    <!-- 訊息提示框 -->
+    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50 hidden transition-opacity duration-300">
+        操作成功
+    </div>
+
+    <!-- 主內容區 -->
+    <main class="p-4 max-w-4xl mx-auto">
+        
+        <!-- 頁面 0: 登入 (Google Auth) -->
+        <div id="view-login" class="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl">
+                    <i class="fas fa-school"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
+                <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
+            </div>
+            
+            <!-- Google 登入按鈕 -->
+            <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full max-w-xs py-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center gap-3">
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-6 h-6" alt="Google Logo">
+                使用 Google 帳號登入
+            </button>
+            
+            <!-- 登入後的角色選擇 (預設隱藏) -->
+            <div id="role-selector" class="hidden w-full max-w-xs space-y-4 animate-fade-in">
+                <p class="text-center text-green-600 font-bold mb-2"><i class="fas fa-check-circle mr-1"></i>驗證成功！請選擇身份：</p>
+                
+                <button onclick="setRole('student')" class="w-full py-4 bg-white border-2 border-blue-500 text-blue-600 font-bold rounded-xl shadow-sm hover:bg-blue-50 transition flex items-center justify-center gap-3">
+                    <i class="fas fa-user-graduate"></i> 我是學生
+                </button>
+                
+                <button onclick="showAdminLogin()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center gap-3">
+                    <i class="fas fa-chalkboard-teacher"></i> 我是老師/管理員
+                </button>
+                
+                <!-- 管理員密碼輸入 -->
+                <div id="admin-login-box" class="hidden w-full bg-white p-4 rounded-xl shadow border mt-2">
+                    <input type="password" id="admin-pwd" placeholder="輸入管理密碼 (admin123)" class="w-full p-2 border rounded mb-2">
+                    <button onclick="checkAdmin()" class="w-full bg-indigo-800 text-white py-2 rounded font-semibold">確認進入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 頁面 1: 每日點名 (老師) -->
+        <div id="view-rollcall" class="hidden page-view">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-check-circle text-blue-500 mr-2"></i>每日點名</h2>
+                <input type="date" id="rc-date" class="border rounded px-2 py-1 bg-white text-sm" onchange="loadRollCallData()">
+            </div>
+            <div id="rollcall-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mb-20">
+                <p class="col-span-full text-center text-gray-500 py-10">載入名單中...</p>
+            </div>
+            <button onclick="submitDailyRollCall()" class="fixed bottom-20 right-4 bg-green-500 hover:bg-green-600 text-white rounded-full p-4 shadow-xl z-40 flex items-center gap-2">
+                <i class="fas fa-save"></i> <span class="text-sm font-bold">儲存紀錄</span>
+            </button>
+        </div>
+
+        <!-- 頁面 2: 請假審核 (老師) -->
+        <div id="view-audit" class="hidden page-view">
+            <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-clipboard-list text-yellow-500 mr-2"></i>請假審核</h2>
+            <div id="audit-list" class="space-y-3 pb-20">
+                <div class="bg-white p-4 rounded-lg shadow text-center text-gray-500">目前沒有待審核的請假單</div>
+            </div>
+        </div>
+
+        <!-- 頁面 3: 7天週統計 (老師) -->
+        <div id="view-stats" class="hidden page-view">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-chart-bar text-purple-500 mr-2"></i>週報表與預警</h2>
+                <div class="flex items-center gap-2 bg-white p-3 rounded-lg shadow-sm">
+                    <label class="text-sm text-gray-600 whitespace-nowrap">選擇週次:</label>
+                    <input type="date" id="stats-date" class="border rounded p-1 w-full" onchange="calculateWeekRange()">
+                </div>
+                <p id="week-range-display" class="text-xs text-blue-600 mt-2 font-medium text-right"></p>
+            </div>
+            <div class="flex gap-2 text-xs mb-3 flex-wrap">
+                <span class="px-2 py-1 bg-red-100 text-red-700 rounded border border-red-200">⚠️ 曠課 > 4 節 (預警)</span>
+            </div>
+            <div class="weekly-table-container">
+                <table class="weekly-table" id="weekly-stats-table"></table>
+            </div>
+        </div>
+
+        <!-- 頁面 4: 系統設定 -->
+        <div id="view-settings" class="hidden page-view">
+            <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-cog text-gray-500 mr-2"></i>系統設定</h2>
+            <div class="bg-white p-4 rounded-lg shadow mb-6">
+                <h3 class="font-bold text-gray-700 mb-2">匯入學生名單 (CSV)</h3>
+                <p class="text-xs text-gray-500 mb-3">格式：學號, 姓名 (支援 Big5/UTF-8)</p>
+                <div class="flex gap-2">
+                    <input type="file" id="csv-file" accept=".csv" class="text-sm w-full">
+                    <button onclick="importCSV()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm whitespace-nowrap">匯入</button>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h3 class="font-bold text-gray-700 mb-2">Telegram 推播設定</h3>
+                <div class="space-y-2">
+                    <input type="text" id="tg-token" placeholder="Bot Token" class="w-full border p-2 rounded text-sm">
+                    <input type="text" id="tg-chatid" placeholder="Chat ID" class="w-full border p-2 rounded text-sm">
+                    <button onclick="saveTgSettings()" class="w-full bg-blue-100 text-blue-600 py-2 rounded text-sm font-bold">儲存設定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 頁面 5: 學生請假介面 -->
+        <div id="view-student" class="hidden page-view">
+            <div class="bg-white p-5 rounded-xl shadow-lg border-l-4 border-blue-500 mb-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">請假申請單</h2>
+                <div class="space-y-4">
+                    <div>
+                         <label class="block text-sm font-medium text-gray-700 mb-1">我是誰?</label>
+                         <select id="stu-select-self" class="w-full border p-2 rounded bg-gray-50 focus:ring-2 focus:ring-blue-500">
+                             <option value="">載入中...</option>
+                         </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500">開始日期</label>
+                            <input type="date" id="leave-start-date" class="w-full border p-2 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500">時間</label>
+                            <input type="time" id="leave-start-time" value="08:00" class="w-full border p-2 rounded">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500">結束日期</label>
+                            <input type="date" id="leave-end-date" class="w-full border p-2 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500">時間</label>
+                            <input type="time" id="leave-end-time" value="17:00" class="w-full border p-2 rounded">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">事由</label>
+                        <textarea id="leave-reason" rows="2" class="w-full border p-2 rounded" placeholder="病假、事假..."></textarea>
+                    </div>
+                    <button onclick="submitStudentLeave()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 shadow-md transition transform active:scale-95">送出申請</button>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h3 class="font-bold text-gray-700 border-b pb-2 mb-2">我的申請紀錄</h3>
+                <ul id="my-leaves" class="text-sm space-y-2 max-h-40 overflow-y-auto">
+                    <li class="text-gray-400">尚無紀錄</li>
+                </ul>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 底部導覽列 -->
+    <nav id="admin-nav" class="bottom-nav hidden">
+        <div class="nav-item active" onclick="switchTab('view-rollcall', this)"><i class="fas fa-user-check"></i><span>點名</span></div>
+        <div class="nav-item" onclick="switchTab('view-audit', this)"><i class="fas fa-file-signature"></i><span>審核</span></div>
+        <div class="nav-item" onclick="switchTab('view-stats', this)"><i class="fas fa-chart-line"></i><span>週統計</span></div>
+        <div class="nav-item" onclick="switchTab('view-settings', this)"><i class="fas fa-sliders-h"></i><span>設定</span></div>
+    </nav>
+
+    <!-- Firebase Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, collection, addDoc, updateDoc, setDoc, query, where, onSnapshot, Timestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // === Firebase 配置 (請使用您提供的) ===
+        const firebaseConfig = {
+            apiKey: "AIzaSyAko3jZkh_OGTw7kqxFwhX5SRJtbNll0Cw",
+            authDomain: "roll-ppshclass.firebaseapp.com",
+            projectId: "roll-ppshclass",
+            storageBucket: "roll-ppshclass.firebasestorage.app",
+            messagingSenderId: "690929841439",
+            appId: "1:690929841439:web:9f3653ce07e64ba461ac2a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        window.db = db;
+        let currentRole = 'guest';
+        let roster = [];
+        let rollCallState = {};
+
+        // === 1. Google 登入邏輯 (含網域檢查) ===
+        
+        // 監聽登入狀態
+        onAuthStateChanged(auth, (user) => {
+            const loginBtn = document.getElementById('google-login-btn');
+            const roleSel = document.getElementById('role-selector');
+            const logoutBtn = document.getElementById('logout-btn');
+            const userInfo = document.getElementById('current-user-info');
+
+            if (user) {
+                // 檢查 Email 網域
+                if (user.email.endsWith('@ppsh.ptc.edu.tw')) {
+                    console.log("網域驗證成功:", user.email);
+                    userInfo.innerText = user.email;
+                    
+                    // UI 切換
+                    loginBtn.classList.add('hidden');
+                    roleSel.classList.remove('hidden');
+                    logoutBtn.classList.remove('hidden');
+                    
+                    // 啟動資料載入
+                    loadRosterFromDB();
+                } else {
+                    // 網域錯誤 -> 強制登出
+                    console.warn("網域錯誤:", user.email);
+                    showToast('錯誤：限 @ppsh.ptc.edu.tw 網域使用', true); // true for alert style
+                    setTimeout(() => signOut(auth), 2000);
+                }
+            } else {
+                // 未登入
+                userInfo.innerText = "訪客模式";
+                loginBtn.classList.remove('hidden');
+                roleSel.classList.add('hidden');
+                logoutBtn.classList.add('hidden');
+                document.getElementById('view-login').classList.remove('hidden');
+                // 隱藏所有功能頁面
+                document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
+                document.getElementById('admin-nav').classList.add('hidden');
+            }
+        });
+
+        // 登入按鈕功能
+        window.loginWithGoogle = function() {
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' }); // 強制選擇帳號
+            signInWithPopup(auth, provider).catch(err => {
+                console.error("Login Failed", err);
+                showToast('登入取消或失敗');
+            });
+        }
+
+        // 登出功能
+        window.logout = function() {
+            signOut(auth).then(() => {
+                location.reload();
+            });
+        }
+
+        // === 2. 角色與 UI 邏輯 ===
+
+        window.setRole = function(role) {
+            currentRole = role;
+            document.getElementById('view-login').classList.add('hidden');
+            
+            if (role === 'admin') {
+                document.getElementById('admin-nav').classList.remove('hidden');
+                switchTab('view-rollcall', document.querySelector('.nav-item'));
+                document.getElementById('rc-date').value = new Date().toISOString().split('T')[0];
+                loadRollCallData();
+                loadAuditList();
+            } else {
+                document.getElementById('view-student').classList.remove('hidden');
+                populateStudentSelect();
+            }
+        }
+        
+        window.showAdminLogin = function() {
+            document.getElementById('admin-login-box').classList.remove('hidden');
+        }
+
+        window.checkAdmin = function() {
+            const pwd = document.getElementById('admin-pwd').value;
+            if(pwd === 'admin123') { 
+                setRole('admin');
+            } else {
+                showToast('密碼錯誤');
+            }
+        }
+
+        window.switchTab = function(viewId, navEl) {
+            document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
+            document.getElementById(viewId).classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if(navEl) navEl.classList.add('active');
+            if(viewId === 'view-stats' && !document.getElementById('stats-date').value) {
+                document.getElementById('stats-date').value = new Date().toISOString().split('T')[0];
+                calculateWeekRange();
+            }
+        }
+
+        // === 3. 核心功能: 週統計 ===
+
+        window.getWeekRange = function(dateStr) {
+            const date = new Date(dateStr);
+            const day = date.getDay();
+            const diffToMon = date.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(date);
+            monday.setDate(diffToMon);
+            monday.setHours(0,0,0,0);
+            
+            const days = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                days.push(d.toISOString().split('T')[0]);
+            }
+            return { days };
+        }
+
+        window.calculateWeekRange = async function() {
+            const dateInput = document.getElementById('stats-date').value;
+            if(!dateInput) return;
+            showLoading(true);
+            const { days } = getWeekRange(dateInput);
+            document.getElementById('week-range-display').innerText = `${days[0]} ~ ${days[6]}`;
+
+            const table = document.getElementById('weekly-stats-table');
+            const dayNames = ['一', '二', '三', '四', '五', '六', '日'];
+            let headerHTML = `<thead><tr><th class="sticky-col">學生</th>`;
+            days.forEach((d, idx) => {
+                headerHTML += `<th>${dayNames[idx]}<br><span class="text-xs font-normal">${d.slice(5).replace('-','/')}</span></th>`;
+            });
+            headerHTML += `<th>統計</th></tr></thead>`;
+            
+            const q = query(collection(db, "attendance"), where("dateKey", ">=", days[0]), where("dateKey", "<=", days[6]));
+            const snapshot = await getDocs(q);
+            const attendanceMap = {};
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (!attendanceMap[data.studentId]) attendanceMap[data.studentId] = {};
+                attendanceMap[data.studentId][data.dateKey] = data.status;
+            });
+
+            let bodyHTML = `<tbody>`;
+            roster.forEach(stu => {
+                const stuRecord = attendanceMap[stu.id] || {};
+                let absentCount = 0;
+                let rowCells = '';
+                days.forEach(day => {
+                    const status = stuRecord[day] || '-';
+                    if (status === 'Absent') absentCount++;
+                    const label = status === 'Present' ? '到' : status === 'Absent' ? '曠' : status === 'Late' ? '遲' : status === 'Leave' ? '假' : '-';
+                    rowCells += `<td class="status-cell ${status}">${label}</td>`;
+                });
+                const isWarning = absentCount > 4;
+                const warningBadge = isWarning ? '<span class="warning-badge">⚠️</span>' : '';
+                bodyHTML += `<tr class="${isWarning ? 'warning-row' : ''}">
+                    <td class="sticky-col font-bold text-gray-700 text-left px-2 whitespace-nowrap">${stu.number}. ${stu.name} ${warningBadge}</td>
+                    ${rowCells}
+                    <td class="text-xs font-bold ${isWarning ? 'text-red-600' : 'text-gray-500'}">${absentCount}</td></tr>`;
+            });
+            table.innerHTML = headerHTML + bodyHTML + `</tbody>`;
+            showLoading(false);
+        }
+
+        // === 4. 資料庫與點名邏輯 ===
+
+        function loadRosterFromDB() {
+            onSnapshot(doc(db, "roster", "class_data"), (docSnap) => {
+                if (docSnap.exists()) {
+                    try {
+                        roster = JSON.parse(docSnap.data().list);
+                        if(currentRole === 'admin') loadRollCallData();
+                    } catch(e) { console.error("Parse roster error", e); }
+                }
+            });
+        }
+
+        window.loadRollCallData = async function() {
+            const dateStr = document.getElementById('rc-date').value;
+            if(!dateStr || roster.length === 0) return;
+            showLoading(true);
+            const container = document.getElementById('rollcall-grid');
+            container.innerHTML = '';
+            
+            const q = query(collection(db, "attendance"), where("dateKey", "==", dateStr));
+            const snapshot = await getDocs(q);
+            const savedState = {};
+            snapshot.forEach(doc => savedState[doc.data().studentId] = doc.data().status);
+            
+            roster.forEach(stu => {
+                const status = savedState[stu.id] || 'Present';
+                rollCallState[stu.id] = status;
+                const btn = document.createElement('div');
+                btn.className = `rollcall-btn rc-${status}`;
+                btn.id = `btn-${stu.id}`;
+                btn.onclick = () => toggleStatus(stu.id);
+                btn.innerHTML = `<span class="text-2xl font-bold">${stu.number}</span><span class="text-xs mt-1 truncate w-full text-center px-1">${stu.name}</span><span class="text-[10px] opacity-80 status-text">${status==='Present'?'到':status==='Absent'?'缺':status==='Late'?'遲':'假'}</span>`;
+                container.appendChild(btn);
+            });
+            showLoading(false);
+        }
+
+        window.toggleStatus = function(stuId) {
+            const types = ['Present', 'Absent', 'Late', 'Leave'];
+            const next = types[(types.indexOf(rollCallState[stuId]) + 1) % types.length];
+            rollCallState[stuId] = next;
+            const btn = document.getElementById(`btn-${stuId}`);
+            btn.className = `rollcall-btn rc-${next}`;
+            btn.querySelector('.status-text').innerText = next==='Present'?'到':next==='Absent'?'缺':next==='Late'?'遲':'假';
+        }
+
+        window.submitDailyRollCall = async function() {
+            const dateStr = document.getElementById('rc-date').value;
+            showLoading(true);
+            const batch = writeBatch(db);
+            roster.map(stu => {
+                const docRef = doc(db, "attendance", `${dateStr}_${stu.id}`);
+                batch.set(docRef, { studentId: stu.id, name: stu.name, dateKey: dateStr, status: rollCallState[stu.id], timestamp: Timestamp.now() });
+            });
+            await batch.commit();
+            showLoading(false);
+            showToast('點名紀錄已儲存');
+        }
+
+        // === 5. 請假、審核、匯入 ===
+
+        function populateStudentSelect() {
+            const sel = document.getElementById('stu-select-self');
+            sel.innerHTML = '<option value="">請選擇您的姓名</option>';
+            roster.forEach(stu => sel.innerHTML += `<option value="${stu.id},${stu.name}">${stu.number}. ${stu.name}</option>`);
+        }
+
+        window.submitStudentLeave = async function() {
+            const val = document.getElementById('stu-select-self').value;
+            const [id, name] = val ? val.split(',') : [null, null];
+            const reason = document.getElementById('leave-reason').value;
+            if(!id || !reason) return showToast('請填寫完整資訊');
+
+            showLoading(true);
+            await addDoc(collection(db, "leave_requests"), {
+                studentId: id, studentName: name,
+                start: `${document.getElementById('leave-start-date').value} ${document.getElementById('leave-start-time').value}`,
+                end: `${document.getElementById('leave-end-date').value} ${document.getElementById('leave-end-time').value}`,
+                reason, status: 'Pending', submittedAt: Timestamp.now()
+            });
+            checkAndNotifyTelegram(id, name, reason);
+            showLoading(false);
+            showToast('申請已送出');
+        }
+
+        function loadAuditList() {
+            onSnapshot(query(collection(db, "leave_requests"), where("status", "==", "Pending")), (snap) => {
+                const list = document.getElementById('audit-list');
+                list.innerHTML = '';
+                if(snap.empty) { list.innerHTML = '<div class="bg-white p-4 rounded text-center text-gray-400">無待審核項目</div>'; return; }
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const div = document.createElement('div');
+                    div.className = "bg-white p-4 rounded-lg shadow border-l-4 border-yellow-400";
+                    div.innerHTML = `<div class="flex justify-between"><div><h4 class="font-bold">${d.studentName}</h4><p class="text-xs text-blue-600">${d.start}~${d.end}</p><p class="text-sm">${d.reason}</p></div>
+                    <div class="flex flex-col gap-2"><button onclick="auditLeave('${doc.id}','Approved')" class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">准</button><button onclick="auditLeave('${doc.id}','Rejected')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">駁</button></div></div>`;
+                    list.appendChild(div);
+                });
+            });
+        }
+        window.auditLeave = async (id, status) => { await updateDoc(doc(db, "leave_requests", id), {status}); showToast('已更新'); };
+
+        window.importCSV = function() {
+            const file = document.getElementById('csv-file').files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const lines = e.target.result.split('\n');
+                const newRoster = [];
+                for(let i=1; i<lines.length; i++) {
+                    const c = lines[i].split(',');
+                    if(c.length>=2 && c[0].trim()) newRoster.push({id: c[0].trim(), name: c[1].trim(), number: i});
+                }
+                if(newRoster.length) {
+                    await setDoc(doc(db, "roster", "class_data"), { list: JSON.stringify(newRoster), updatedAt: Timestamp.now() });
+                    showToast(`匯入 ${newRoster.length} 筆`);
+                }
+            };
+            try { reader.readAsText(file, 'Big5'); } catch { reader.readAsText(file); }
+        }
+
+        // === 6. Telegram & Utils ===
+        window.saveTgSettings = () => {
+            localStorage.setItem('tg_token', document.getElementById('tg-token').value);
+            localStorage.setItem('tg_chatid', document.getElementById('tg-chatid').value);
+            showToast('已儲存');
+        }
+        async function checkAndNotifyTelegram(id, name, reason) {
+            const token = localStorage.getItem('tg_token'), chat = localStorage.getItem('tg_chatid');
+            if(!token || !chat) return;
+            let warning = "";
+            try {
+                const snap = await getDocs(query(collection(db, "attendance"), where("studentId", "==", id), where("status", "==", "Absent")));
+                if(snap.size > 4) warning = "\n⚠️ [系統預警] 曠課 > 4";
+            } catch(e){}
+            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ chat_id: chat, text: `📝 *假單*\n${name} (${id})\n事由: ${reason}${warning}`, parse_mode: 'Markdown' })
+            });
+        }
+
+        function showLoading(b) { document.getElementById('loading').classList.toggle('hidden', !b); }
+        function showToast(msg, alert=false) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.className = `fixed top-20 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg text-sm z-50 transition-opacity duration-300 ${alert?'bg-red-600':'bg-gray-800'} text-white`;
+            t.classList.remove('hidden'); t.style.opacity = 1;
+            setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.classList.add('hidden'), 300); }, 3000);
+        }
+        
+        // Init Load
+        document.getElementById('tg-token').value = localStorage.getItem('tg_token') || '';
+        document.getElementById('tg-chatid').value = localStorage.getItem('tg_chatid') || '';
+    </script>
+</body>
+</html>
