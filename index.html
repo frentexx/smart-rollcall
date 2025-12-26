@@ -313,11 +313,12 @@
         <div class="nav-item" onclick="switchTab('view-settings', this)"><i class="fas fa-sliders-h"></i><span>設定</span></div>
     </nav>
 
-    <!-- Firebase Logic -->
+   <!-- Firebase Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, collection, addDoc, updateDoc, setDoc, query, where, onSnapshot, Timestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        // 🔴 修改處 1: 引入 signInWithRedirect (移除 signInWithPopup)
+        import { getAuth, signInWithRedirect, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // === Firebase 配置 (MyRollCall) ===
         const firebaseConfig = {
@@ -358,6 +359,7 @@
                 } else {
                     console.warn("網域錯誤:", user.email);
                     showToast('錯誤：限 @ppsh.ptc.edu.tw 網域使用', true);
+                    // 延遲登出讓使用者看到錯誤訊息
                     setTimeout(() => signOut(auth), 2000);
                 }
             } else {
@@ -371,13 +373,13 @@
             }
         });
 
+        // 🔴 修改處 2: 改用 Redirect 模式
         window.loginWithGoogle = function() {
             const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({ prompt: 'select_account' });
-            signInWithPopup(auth, provider).catch(err => {
-                console.error("Login Failed", err);
-                showToast('登入取消或失敗');
-            });
+            // Redirect 模式下通常不需要 setCustomParameters(prompt)，因為會直接跳轉
+            // 但保留也無妨，重點是下面這行：
+            signInWithRedirect(auth, provider);
+            // 注意：Redirect 模式沒有 .catch，錯誤處理通常由 onAuthStateChanged 處理
         }
 
         window.logout = function() {
@@ -456,7 +458,6 @@
             const attendanceMap = {};
             snapshot.forEach(doc => {
                 const data = doc.data();
-                // 這裡的 studentId 是系統唯一碼 (UUID)
                 if (!attendanceMap[data.studentId]) attendanceMap[data.studentId] = {};
                 attendanceMap[data.studentId][data.dateKey] = data.status;
             });
@@ -474,7 +475,6 @@
                 });
                 const isWarning = absentCount > 4;
                 const warningBadge = isWarning ? '<span class="warning-badge">⚠️</span>' : '';
-                // 顯示平時班級在名字旁
                 bodyHTML += `<tr class="${isWarning ? 'warning-row' : ''}">
                     <td class="sticky-col font-bold text-gray-700 text-left px-2 whitespace-nowrap">
                         <span class="inline-block w-5 text-center mr-1">${stu.number}.</span>${stu.name} <span class="text-[10px] text-gray-400">(${stu.classLabel})</span> ${warningBadge}
@@ -486,7 +486,7 @@
             showLoading(false);
         }
 
-        // === 4. 資料庫與點名邏輯 (修正 ID 衝突) ===
+        // === 4. 資料庫與點名邏輯 ===
         function loadRosterFromDB() {
             onSnapshot(doc(db, "roster", "class_data"), (docSnap) => {
                 if (docSnap.exists()) {
@@ -511,16 +511,14 @@
             snapshot.forEach(doc => savedState[doc.data().studentId] = doc.data().status);
             
             roster.forEach(stu => {
-                const status = savedState[stu.id] || 'Present'; // 這裡使用唯一 ID (stu.id)
+                const status = savedState[stu.id] || 'Present';
                 rollCallState[stu.id] = status;
                 
                 const btn = document.createElement('div');
                 btn.className = `rollcall-btn rc-${status}`;
-                btn.id = `btn-${stu.id}`; // 按鈕 ID 使用唯一碼
-                // 傳遞唯一碼給 toggle 函式，解決衝突
+                btn.id = `btn-${stu.id}`;
                 btn.onclick = () => toggleStatus(stu.id);
                 
-                // 顯示：座號、姓名、(平時班級)
                 btn.innerHTML = `
                     <span class="text-2xl font-bold">${stu.number}</span>
                     <span class="text-xs mt-1 truncate w-full text-center px-1 font-bold">${stu.name}</span>
@@ -546,12 +544,11 @@
             showLoading(true);
             const batch = writeBatch(db);
             roster.map(stu => {
-                // 儲存時使用唯一 ID
                 const docRef = doc(db, "attendance", `${dateStr}_${stu.id}`);
                 batch.set(docRef, { 
-                    studentId: stu.id, // 唯一碼
+                    studentId: stu.id, 
                     name: stu.name, 
-                    classLabel: stu.classLabel, // 記錄平時班級以供參考
+                    classLabel: stu.classLabel, 
                     dateKey: dateStr, 
                     status: rollCallState[stu.id], 
                     timestamp: Timestamp.now() 
@@ -562,7 +559,7 @@
             showToast('點名紀錄已儲存');
         }
 
-        // === 5. 請假、審核、匯入 (修正匯入邏輯) ===
+        // === 5. 請假、審核、匯入 ===
         function populateStudentSelect() {
             const sel = document.getElementById('stu-select-self');
             sel.innerHTML = '<option value="">請選擇您的姓名</option>';
@@ -576,7 +573,6 @@
             if(!id || !reason) return showToast('請填寫完整資訊');
 
             showLoading(true);
-            // 找到該學生的完整資料以獲取平時班級
             const studentObj = roster.find(s => s.id === id);
             const classLbl = studentObj ? studentObj.classLabel : "";
 
@@ -619,7 +615,6 @@
         }
         window.auditLeave = async (id, status) => { await updateDoc(doc(db, "leave_requests", id), {status}); showToast('已更新'); };
 
-        // 🟢 修正後的匯入 CSV 函式
         window.importCSV = function() {
             const file = document.getElementById('csv-file').files[0];
             if (!file) return;
@@ -627,30 +622,25 @@
             reader.onload = async (e) => {
                 const lines = e.target.result.split('\n');
                 const newRoster = [];
-                // 假設 CSV 格式: 平時班級, 姓名 (無標題或有標題皆可處理，這裡假設第一行是資料若不是數字可略過)
                 let startIdx = 0;
-                // 簡單檢查第一行是否為標題，如果是 "班級,姓名" 則跳過
                 if (lines[0].includes("班級") || lines[0].includes("Class")) startIdx = 1;
 
                 let seatCounter = 1;
                 for(let i=startIdx; i<lines.length; i++) {
                     const c = lines[i].split(',');
                     if(c.length>=2 && c[0].trim()) {
-                        // 產生唯一亂數 ID，避免平時班級重複造成衝突
                         const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-                        
                         newRoster.push({
-                            id: uniqueId,          // 系統內部唯一碼
-                            classLabel: c[0].trim(), // 平時班級 (顯示用)
-                            name: c[1].trim(),     // 姓名
-                            number: seatCounter++  // 課後班座號 (自動編號)
+                            id: uniqueId,          
+                            classLabel: c[0].trim(), 
+                            name: c[1].trim(),     
+                            number: seatCounter++  
                         });
                     }
                 }
                 
                 if(newRoster.length) {
-                    // 警告：這會覆蓋舊名單
-                    if(confirm(`即將匯入 ${newRoster.length} 筆資料。注意：重新匯入會導致舊的出席紀錄無法對應到新名單(因為ID重置)，確定嗎？`)) {
+                    if(confirm(`即將匯入 ${newRoster.length} 筆資料。注意：重新匯入會導致舊的出席紀錄無法對應到新名單，確定嗎？`)) {
                         await setDoc(doc(db, "roster", "class_data"), { list: JSON.stringify(newRoster), updatedAt: Timestamp.now() });
                         showToast(`匯入成功！`);
                     }
