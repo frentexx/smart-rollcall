@@ -21,51 +21,24 @@
             font-family: 'Noto Sans TC', sans-serif;
             background-color: #f3f4f6;
             -webkit-tap-highlight-color: transparent;
-            padding-bottom: 80px; /* 為底部導覽列預留空間 */
+            padding-bottom: 80px; 
         }
-
-        /* 滾動條優化 */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 
-        /* 週報表表格樣式 */
         .weekly-table-container {
-            overflow-x: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            background: white;
+            overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background: white;
         }
-        .weekly-table {
-            min-width: 800px;
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .weekly-table th, .weekly-table td {
-            border: 1px solid #e5e7eb;
-            padding: 8px;
-            text-align: center;
-            font-size: 0.85rem;
-        }
-        .weekly-table th {
-            background-color: #f8fafc;
-            color: #475569;
-            font-weight: 600;
-        }
-        .sticky-col {
-            position: sticky;
-            left: 0;
-            background-color: #ffffff;
-            z-index: 10;
-            border-right: 2px solid #e2e8f0;
-        }
+        .weekly-table { min-width: 800px; width: 100%; border-collapse: collapse; }
+        .weekly-table th, .weekly-table td { border: 1px solid #e5e7eb; padding: 8px; text-align: center; font-size: 0.85rem; }
+        .weekly-table th { background-color: #f8fafc; color: #475569; font-weight: 600; }
+        .sticky-col { position: sticky; left: 0; background-color: #ffffff; z-index: 10; border-right: 2px solid #e2e8f0; }
         
-        /* 狀態顏色 */
         .status-cell.Present { background-color: #d1fae5; color: #065f46; }
         .status-cell.Absent { background-color: #fee2e2; color: #991b1b; }
         .status-cell.Late { background-color: #fef3c7; color: #92400e; }
         .status-cell.Leave { background-color: #dbeafe; color: #1e40af; }
 
-        /* 預警列樣式 */
         .warning-row { background-color: #fff1f2 !important; }
         .warning-row .sticky-col { background-color: #fff1f2 !important; border-left: 4px solid #ef4444; }
         .warning-badge {
@@ -74,12 +47,9 @@
             margin-left: 4px; animation: pulse 2s infinite;
         }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-
-        /* 動畫 */
         .animate-fade-in { animation: fadeIn 0.5s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 底部導覽列 */
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: white; display: flex; justify-content: space-around;
@@ -92,7 +62,6 @@
         .nav-item.active { color: #3b82f6; }
         .nav-item i { font-size: 1.25rem; margin-bottom: 4px; }
 
-        /* 點名方塊 */
         .rollcall-btn {
             aspect-ratio: 1; display: flex; flex-direction: column;
             align-items: center; justify-content: center; border-radius: 12px;
@@ -124,24 +93,16 @@
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
         document.head.appendChild(Object.assign(document.createElement('link'), {rel: 'manifest', href: URL.createObjectURL(manifestBlob)}));
 
-        // 🔴 版本號更新為 2.3，強制更新 Service Worker
+        // Ver 3.0: 再次更新快取
         if ('serviceWorker' in navigator) {
             const swCode = `
-                const CACHE_NAME = 'rollcall-v2.3-debug-${new Date().getTime()}'; 
+                const CACHE_NAME = 'rollcall-v3.0-${new Date().getTime()}'; 
                 self.addEventListener('install', e => self.skipWaiting());
                 self.addEventListener('activate', e => {
-                    e.waitUntil(
-                        caches.keys().then(keys => Promise.all(
-                            keys.map(key => {
-                                if(key !== CACHE_NAME) return caches.delete(key);
-                            })
-                        ))
-                    );
+                    e.waitUntil(caches.keys().then(keys => Promise.all(keys.map(key => { if(key !== CACHE_NAME) return caches.delete(key); }))));
                     self.clients.claim();
                 });
-                self.addEventListener('fetch', e => e.respondWith(
-                    fetch(e.request).catch(() => caches.match(e.request))
-                ));
+                self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
             `;
             navigator.serviceWorker.register(URL.createObjectURL(new Blob([swCode], {type: 'application/javascript'}))).catch(console.log);
         }
@@ -173,23 +134,43 @@
     <!-- 主內容區 -->
     <main class="p-4 max-w-4xl mx-auto">
         
-        <!-- 頁面 0: 登入 (Google Auth) -->
+        <!-- 頁面 0: 登入 (支援 Email/Password) -->
         <div id="view-login" class="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-            <div class="text-center mb-8">
+            <div class="text-center mb-4">
                 <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl">
                     <i class="fas fa-school"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
-                <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
-                <!-- 🔴 新增：Debug 版本號 -->
-                <p class="text-xs text-red-500 mt-4 font-bold">System Ver: 2.3 (Final Debug)</p>
+                <p class="text-gray-500 text-sm mt-1">System Ver: 3.0 (Hybrid Login)</p>
             </div>
             
-            <!-- Google 登入按鈕 -->
-            <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full max-w-xs py-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center gap-3">
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-6 h-6" alt="Google Logo">
-                使用 Google 帳號登入
-            </button>
+            <!-- 登入表單 -->
+            <div id="login-form-container" class="w-full max-w-xs space-y-4">
+                
+                <!-- Email/Password 登入區塊 -->
+                <div class="bg-white p-4 rounded-xl shadow border border-gray-200">
+                    <h3 class="text-sm font-bold text-gray-700 mb-3 text-center">信箱登入 (推薦)</h3>
+                    <input type="email" id="email-input" placeholder="請輸入學校信箱 (@ppsh...)" class="w-full p-2 border rounded mb-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    <input type="password" id="password-input" placeholder="密碼" class="w-full p-2 border rounded mb-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    
+                    <div class="flex gap-2">
+                        <button onclick="loginWithEmail()" class="flex-1 bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700">登入</button>
+                        <button onclick="registerWithEmail()" class="flex-1 bg-gray-100 text-blue-600 py-2 rounded font-bold text-sm hover:bg-gray-200">註冊</button>
+                    </div>
+                </div>
+
+                <div class="relative flex py-2 items-center">
+                    <div class="flex-grow border-t border-gray-300"></div>
+                    <span class="flex-shrink-0 mx-4 text-gray-400 text-xs">或</span>
+                    <div class="flex-grow border-t border-gray-300"></div>
+                </div>
+
+                <!-- Google 登入按鈕 (保留備用) -->
+                <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition flex items-center justify-center gap-2 text-sm">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5" alt="Google Logo">
+                    Google 帳號登入
+                </button>
+            </div>
             
             <!-- 登入後的角色選擇 (預設隱藏) -->
             <div id="role-selector" class="hidden w-full max-w-xs space-y-4 animate-fade-in">
@@ -211,7 +192,8 @@
             </div>
         </div>
 
-        <!-- 頁面 1: 每日點名 (老師) -->
+        <!-- 頁面 1-5 (省略，與之前相同，保持不變即可) -->
+        <!-- 頁面 1: 每日點名 -->
         <div id="view-rollcall" class="hidden page-view">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-check-circle text-blue-500 mr-2"></i>每日點名</h2>
@@ -225,15 +207,11 @@
             </button>
         </div>
 
-        <!-- 頁面 2: 請假審核 (老師) -->
         <div id="view-audit" class="hidden page-view">
             <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-clipboard-list text-yellow-500 mr-2"></i>請假審核</h2>
-            <div id="audit-list" class="space-y-3 pb-20">
-                <div class="bg-white p-4 rounded-lg shadow text-center text-gray-500">目前沒有待審核的請假單</div>
-            </div>
+            <div id="audit-list" class="space-y-3 pb-20"><div class="bg-white p-4 rounded-lg shadow text-center text-gray-500">目前沒有待審核的請假單</div></div>
         </div>
 
-        <!-- 頁面 3: 7天週統計 (老師) -->
         <div id="view-stats" class="hidden page-view">
             <div class="mb-4">
                 <h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-chart-bar text-purple-500 mr-2"></i>週報表與預警</h2>
@@ -243,15 +221,10 @@
                 </div>
                 <p id="week-range-display" class="text-xs text-blue-600 mt-2 font-medium text-right"></p>
             </div>
-            <div class="flex gap-2 text-xs mb-3 flex-wrap">
-                <span class="px-2 py-1 bg-red-100 text-red-700 rounded border border-red-200">⚠️ 曠課 > 4 節 (預警)</span>
-            </div>
-            <div class="weekly-table-container">
-                <table class="weekly-table" id="weekly-stats-table"></table>
-            </div>
+            <div class="flex gap-2 text-xs mb-3 flex-wrap"><span class="px-2 py-1 bg-red-100 text-red-700 rounded border border-red-200">⚠️ 曠課 > 4 節 (預警)</span></div>
+            <div class="weekly-table-container"><table class="weekly-table" id="weekly-stats-table"></table></div>
         </div>
 
-        <!-- 頁面 4: 系統設定 -->
         <div id="view-settings" class="hidden page-view">
             <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-cog text-gray-500 mr-2"></i>系統設定</h2>
             <div class="bg-white p-4 rounded-lg shadow mb-6">
@@ -272,50 +245,18 @@
             </div>
         </div>
 
-        <!-- 頁面 5: 學生請假介面 -->
         <div id="view-student" class="hidden page-view">
             <div class="bg-white p-5 rounded-xl shadow-lg border-l-4 border-blue-500 mb-6">
                 <h2 class="text-xl font-bold text-gray-800 mb-4">請假申請單</h2>
                 <div class="space-y-4">
-                    <div>
-                         <label class="block text-sm font-medium text-gray-700 mb-1">我是誰?</label>
-                         <select id="stu-select-self" class="w-full border p-2 rounded bg-gray-50 focus:ring-2 focus:ring-blue-500">
-                             <option value="">載入中...</option>
-                         </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs text-gray-500">開始日期</label>
-                            <input type="date" id="leave-start-date" class="w-full border p-2 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500">時間</label>
-                            <input type="time" id="leave-start-time" value="08:00" class="w-full border p-2 rounded">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs text-gray-500">結束日期</label>
-                            <input type="date" id="leave-end-date" class="w-full border p-2 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500">時間</label>
-                            <input type="time" id="leave-end-time" value="17:00" class="w-full border p-2 rounded">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-500">事由</label>
-                        <textarea id="leave-reason" rows="2" class="w-full border p-2 rounded" placeholder="病假、事假..."></textarea>
-                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">我是誰?</label><select id="stu-select-self" class="w-full border p-2 rounded bg-gray-50 focus:ring-2 focus:ring-blue-500"><option value="">載入中...</option></select></div>
+                    <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs text-gray-500">開始日期</label><input type="date" id="leave-start-date" class="w-full border p-2 rounded"></div><div><label class="block text-xs text-gray-500">時間</label><input type="time" id="leave-start-time" value="08:00" class="w-full border p-2 rounded"></div></div>
+                    <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs text-gray-500">結束日期</label><input type="date" id="leave-end-date" class="w-full border p-2 rounded"></div><div><label class="block text-xs text-gray-500">時間</label><input type="time" id="leave-end-time" value="17:00" class="w-full border p-2 rounded"></div></div>
+                    <div><label class="block text-xs text-gray-500">事由</label><textarea id="leave-reason" rows="2" class="w-full border p-2 rounded" placeholder="病假、事假..."></textarea></div>
                     <button onclick="submitStudentLeave()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 shadow-md transition transform active:scale-95">送出申請</button>
                 </div>
             </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <h3 class="font-bold text-gray-700 border-b pb-2 mb-2">我的申請紀錄</h3>
-                <ul id="my-leaves" class="text-sm space-y-2 max-h-40 overflow-y-auto">
-                    <li class="text-gray-400">尚無紀錄</li>
-                </ul>
-            </div>
+            <div class="bg-white p-4 rounded-lg shadow"><h3 class="font-bold text-gray-700 border-b pb-2 mb-2">我的申請紀錄</h3><ul id="my-leaves" class="text-sm space-y-2 max-h-40 overflow-y-auto"><li class="text-gray-400">尚無紀錄</li></ul></div>
         </div>
 
     </main>
@@ -332,8 +273,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, collection, addDoc, updateDoc, setDoc, query, where, onSnapshot, Timestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        // 🔴 引入 getRedirectResult
-        import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        // 🔴 引入 Email 登入相關函式
+        import { getAuth, signInWithRedirect, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // === Firebase 配置 (MyRollCall) ===
         const firebaseConfig = {
@@ -355,45 +296,30 @@
         let roster = [];
         let rollCallState = {};
 
-        // 🔴 偵錯代碼：捕捉 Redirect 錯誤並 Alert
-        getRedirectResult(auth)
-            .then((result) => {
-                if (result) {
-                    console.log("Redirect success:", result.user);
-                    showToast("Google 驗證成功 (Redirect)");
-                }
-            })
-            .catch((error) => {
-                console.error("Redirect Error:", error);
-                // 讓手機跳出錯誤視窗，這就是解謎關鍵
-                alert("🔴 Redirect 回傳錯誤 🔴\n\nCode: " + error.code + "\n\nMsg: " + error.message);
-            });
-
-        // === 1. Google 登入邏輯 (含網域檢查) ===
+        // === 1. 驗證狀態監聽 (統一處理 Google 或 Email 登入) ===
         onAuthStateChanged(auth, (user) => {
-            const loginBtn = document.getElementById('google-login-btn');
+            const loginContainer = document.getElementById('login-form-container');
             const roleSel = document.getElementById('role-selector');
             const logoutBtn = document.getElementById('logout-btn');
             const userInfo = document.getElementById('current-user-info');
 
             if (user) {
-                // ⚠️ 若需測試個人帳號: if (user.email.endsWith('@ppsh.ptc.edu.tw') || user.email === '您的@gmail.com')
+                // 檢查網域 (適用於 Google 和 Email 登入)
                 if (user.email.endsWith('@ppsh.ptc.edu.tw')) {
-                    console.log("網域驗證成功:", user.email);
+                    console.log("登入成功:", user.email);
                     userInfo.innerText = user.email;
-                    loginBtn.classList.add('hidden');
-                    roleSel.classList.remove('hidden');
+                    loginContainer.classList.add('hidden'); // 隱藏登入表單
+                    roleSel.classList.remove('hidden');     // 顯示角色選擇
                     logoutBtn.classList.remove('hidden');
                     loadRosterFromDB();
                 } else {
                     console.warn("網域錯誤:", user.email);
                     showToast('錯誤：限 @ppsh.ptc.edu.tw 網域使用', true);
-                    // 延遲登出讓使用者看到錯誤訊息
                     setTimeout(() => signOut(auth), 2000);
                 }
             } else {
                 userInfo.innerText = "訪客模式";
-                loginBtn.classList.remove('hidden');
+                loginContainer.classList.remove('hidden');
                 roleSel.classList.add('hidden');
                 logoutBtn.classList.add('hidden');
                 document.getElementById('view-login').classList.remove('hidden');
@@ -402,26 +328,61 @@
             }
         });
 
-        // 🔴 改用 Redirect 模式 + 啟動偵錯
-        window.loginWithGoogle = function() {
-            // 1. 檢查 sessionStorage 是否可用 (判斷是否為無痕模式)
-            try {
-                sessionStorage.setItem('test', '1');
-                sessionStorage.removeItem('test');
-            } catch (e) {
-                alert("🔴 瀏覽器不支援 Storage (可能是無痕模式或 Cookies 被封鎖)，無法使用 Google 登入。");
-                return;
+        // === 🔴 新增：Email/密碼 登入邏輯 ===
+        window.loginWithEmail = function() {
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
+            if(!email || !password) return alert("請輸入信箱和密碼");
+            
+            showLoading(true);
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    showLoading(false);
+                    showToast("登入成功");
+                })
+                .catch((error) => {
+                    showLoading(false);
+                    console.error(error);
+                    let msg = "登入失敗";
+                    if(error.code === 'auth/invalid-credential') msg = "帳號或密碼錯誤";
+                    if(error.code === 'auth/user-not-found') msg = "此帳號尚未註冊";
+                    if(error.code === 'auth/wrong-password') msg = "密碼錯誤";
+                    alert(msg);
+                });
+        }
+
+        // === 🔴 新增：Email/密碼 註冊邏輯 ===
+        window.registerWithEmail = function() {
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
+            if(!email || !password) return alert("請輸入信箱和密碼");
+            if(password.length < 6) return alert("密碼至少需 6 碼");
+            
+            // 前端先擋網域
+            if(!email.endsWith('@ppsh.ptc.edu.tw')) {
+                return alert("註冊失敗：僅限 @ppsh.ptc.edu.tw 網域註冊");
             }
 
-            // 2. 顯示啟動訊息
-            alert("正在啟動 Google 登入...");
-
-            const provider = new GoogleAuthProvider();
-            signInWithRedirect(auth, provider)
+            showLoading(true);
+            createUserWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    showLoading(false);
+                    showToast("註冊成功！已自動登入");
+                })
                 .catch((error) => {
-                    // 3. 如果連啟動都失敗，這裡會抓到
-                    alert("🔴 啟動失敗 🔴\n\nCode: " + error.code + "\n\nMsg: " + error.message);
+                    showLoading(false);
+                    console.error(error);
+                    let msg = "註冊失敗";
+                    if(error.code === 'auth/email-already-in-use') msg = "此信箱已被註冊，請直接登入";
+                    if(error.code === 'auth/weak-password') msg = "密碼太弱";
+                    alert(msg);
                 });
+        }
+
+        // 舊的 Google 登入 (保留備用)
+        window.loginWithGoogle = function() {
+            const provider = new GoogleAuthProvider();
+            signInWithRedirect(auth, provider);
         }
 
         window.logout = function() {
@@ -430,6 +391,7 @@
             });
         }
 
+        // (以下為原有的 App 邏輯，保持不變)
         // === 2. 角色與 UI 邏輯 ===
         window.setRole = function(role) {
             currentRole = role;
@@ -472,7 +434,7 @@
             monday.setDate(diffToMon);
             monday.setHours(0,0,0,0);
             const days = [];
-            for (let i = 7; i < 7; i++) {
+            for (let i = 0; i < 7; i++) {
                 const d = new Date(monday);
                 d.setDate(monday.getDate() + i);
                 days.push(d.toISOString().split('T')[0]);
@@ -691,7 +653,6 @@
             try { reader.readAsText(file, 'Big5'); } catch { reader.readAsText(file); }
         }
 
-        // === 6. Telegram & Utils ===
         window.saveTgSettings = () => {
             localStorage.setItem('tg_token', document.getElementById('tg-token').value);
             localStorage.setItem('tg_chatid', document.getElementById('tg-chatid').value);
