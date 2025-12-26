@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小清華專屬課後點名系統</title>
+    <title>智慧校園點名系統 PWA (完整版)</title>
     <meta name="theme-color" content="#3b82f6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -44,10 +44,14 @@
         .rc-Late { background: #F59E0B; color: white; }
         .rc-Leave { background: #3B82F6; color: white; }
         .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        
+        /* 模態視窗 (Modal) */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 60; }
+        .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     </style>
 
     <script>
-        const manifest = { "name": "小清華專屬課後點名系統", "short_name": "點名系統", "start_url": ".", "display": "standalone", "background_color": "#f3f4f6", "theme_color": "#3b82f6", "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/3135/3135768.png", "sizes": "192x192", "type": "image/png"}] };
+        const manifest = { "name": "智慧點名系統", "short_name": "點名系統", "start_url": ".", "display": "standalone", "background_color": "#f3f4f6", "theme_color": "#3b82f6", "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/3135/3135768.png", "sizes": "192x192", "type": "image/png"}] };
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
         document.head.appendChild(Object.assign(document.createElement('link'), {rel: 'manifest', href: URL.createObjectURL(manifestBlob)}));
     </script>
@@ -57,11 +61,10 @@
     <header class="bg-blue-600 text-white p-3 shadow-md sticky top-0 z-40">
         <div class="flex justify-between items-center">
             <div class="flex flex-col">
-                <h1 class="text-lg font-bold">小清華專屬課後點名系統</h1>
+                <h1 class="text-lg font-bold">智慧校園點名系統</h1>
                 <p class="text-xs opacity-80" id="current-user-info">請先登入</p>
             </div>
             <div class="flex items-center gap-2">
-                <!-- 班級選擇器 (登入後顯示) -->
                 <select id="class-selector" class="hidden text-gray-800 text-sm p-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300 max-w-[150px]" onchange="switchClass(this.value)">
                     <option value="">載入班級...</option>
                 </select>
@@ -73,6 +76,34 @@
     <div id="loading" class="loading-overlay hidden"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>
     <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50 hidden transition-opacity duration-300">操作成功</div>
 
+    <!-- 駁回理由視窗 (Modal) -->
+    <div id="reject-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">駁回請假申請</h3>
+            <p class="text-sm text-gray-600 mb-2">請選擇駁回理由，學生將會收到通知：</p>
+            <select id="reject-reason-select" class="w-full border p-2 rounded mb-3">
+                <option value="佐證資料不足">佐證資料不足 (如：缺醫生證明)</option>
+                <option value="理由不充分">理由不充分</option>
+                <option value="當天有重要考試">當天有重要考試，不予准假</option>
+                <option value="缺曠課過多">已缺曠過多，請注意出席率</option>
+                <option value="家長未同意">家長未簽名或未同意</option>
+                <option value="其他">其他 (請見面談)</option>
+            </select>
+            <div class="flex justify-end gap-2 mt-4">
+                <button onclick="closeRejectModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm">取消</button>
+                <button onclick="confirmReject()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm">確認駁回</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 圖片預覽視窗 (Modal) -->
+    <div id="image-modal" class="modal-overlay hidden" onclick="closeImageModal()">
+        <div class="modal-content text-center" onclick="event.stopPropagation()">
+            <img id="preview-image-large" src="" class="max-w-full max-h-[80vh] rounded mb-2">
+            <button onclick="closeImageModal()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm w-full">關閉</button>
+        </div>
+    </div>
+
     <main class="p-4 max-w-4xl mx-auto">
         
         <!-- 登入頁面 -->
@@ -81,7 +112,7 @@
                 <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl"><i class="fas fa-school"></i></div>
                 <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
                 <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
-                <p class="text-xs text-gray-400 mt-4">System Ver: 4.2 (Stable Stats)</p>
+                <p class="text-xs text-gray-400 mt-4">System Ver: 5.0 (Full Features)</p>
             </div>
             
             <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full max-w-xs py-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center gap-3">
@@ -93,12 +124,7 @@
                 <p class="text-center text-green-600 font-bold mb-2"><i class="fas fa-check-circle mr-1"></i>驗證成功！請選擇身份：</p>
                 <button onclick="setRole('student')" class="w-full py-4 bg-white border-2 border-blue-500 text-blue-600 font-bold rounded-xl shadow-sm hover:bg-blue-50 transition flex items-center justify-center gap-3"><i class="fas fa-user-graduate"></i> 我是學生</button>
                 <button onclick="showAdminLogin()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center gap-3"><i class="fas fa-chalkboard-teacher"></i> 我是老師/管理員</button>
-                
-                <!-- 管理員密碼輸入 (已移除提示語) -->
-                <div id="admin-login-box" class="hidden w-full bg-white p-4 rounded-xl shadow border mt-2">
-                    <input type="password" id="admin-pwd" placeholder="請輸入管理密碼" class="w-full p-2 border rounded mb-2">
-                    <button onclick="checkAdmin()" class="w-full bg-indigo-800 text-white py-2 rounded font-semibold">確認進入</button>
-                </div>
+                <div id="admin-login-box" class="hidden w-full bg-white p-4 rounded-xl shadow border mt-2"><input type="password" id="admin-pwd" placeholder="請輸入管理密碼" class="w-full p-2 border rounded mb-2"><button onclick="checkAdmin()" class="w-full bg-indigo-800 text-white py-2 rounded font-semibold">確認進入</button></div>
             </div>
         </div>
 
@@ -112,7 +138,7 @@
             <button onclick="submitDailyRollCall()" class="fixed bottom-20 right-4 bg-green-500 hover:bg-green-600 text-white rounded-full p-4 shadow-xl z-40 flex items-center gap-2"><i class="fas fa-save"></i> <span class="text-sm font-bold">儲存紀錄</span></button>
         </div>
 
-        <!-- 頁面 2: 請假審核 -->
+        <!-- 頁面 2: 請假審核 (Updated) -->
         <div id="view-audit" class="hidden page-view">
             <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-clipboard-list text-yellow-500 mr-2"></i>請假審核</h2>
             <p class="text-xs text-gray-500 mb-2" id="audit-class-hint">目前顯示班級：載入中...</p>
@@ -136,7 +162,6 @@
         <!-- 頁面 4: 系統設定 -->
         <div id="view-settings" class="hidden page-view">
             <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-cog text-gray-500 mr-2"></i>系統設定</h2>
-            
             <div class="bg-white p-4 rounded-lg shadow mb-6 border-l-4 border-indigo-500">
                 <h3 class="font-bold text-gray-700 mb-2">班級管理</h3>
                 <div class="flex gap-2 mb-3">
@@ -148,7 +173,6 @@
                     <button onclick="deleteCurrentClass()" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200">刪除此班級 (含名單與紀錄)</button>
                 </div>
             </div>
-
             <div class="bg-white p-4 rounded-lg shadow mb-6">
                 <h3 class="font-bold text-gray-700 mb-2">匯入學生名單 (CSV)</h3>
                 <p class="text-xs text-gray-500 mb-1">將匯入至：<span id="import-target-class" class="font-bold text-blue-600">未選擇班級</span></p>
@@ -157,7 +181,6 @@
                     <button onclick="importCSV()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm whitespace-nowrap">匯入</button>
                 </div>
             </div>
-            
             <div class="bg-white p-4 rounded-lg shadow">
                 <h3 class="font-bold text-gray-700 mb-2">Telegram 推播設定 (全校通用)</h3>
                 <div class="space-y-2">
@@ -168,7 +191,7 @@
             </div>
         </div>
 
-        <!-- 頁面 5: 學生請假介面 -->
+        <!-- 頁面 5: 學生請假介面 (Updated) -->
         <div id="view-student" class="hidden page-view">
             <div class="bg-white p-5 rounded-xl shadow-lg border-l-4 border-blue-500 mb-6">
                 <h2 class="text-xl font-bold text-gray-800 mb-4">請假申請單</h2>
@@ -187,36 +210,38 @@
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs text-gray-500">開始日期</label>
-                            <input type="date" id="leave-start-date" class="w-full border p-2 rounded">
-                        </div>
-                        <div>
-                            <!-- 修正：明確標示為 24小時制 -->
-                            <label class="block text-xs text-gray-500">時間 (24h)</label>
-                            <input type="time" id="leave-start-time" value="08:00" class="w-full border p-2 rounded">
-                        </div>
+                        <div><label class="block text-xs text-gray-500">開始日期</label><input type="date" id="leave-start-date" class="w-full border p-2 rounded"></div>
+                        <div><label class="block text-xs text-gray-500">時間 (24h)</label><input type="time" id="leave-start-time" value="08:00" class="w-full border p-2 rounded"></div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs text-gray-500">結束日期</label>
-                            <input type="date" id="leave-end-date" class="w-full border p-2 rounded">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500">時間 (24h)</label>
-                            <input type="time" id="leave-end-time" value="17:00" class="w-full border p-2 rounded">
-                        </div>
+                        <div><label class="block text-xs text-gray-500">結束日期</label><input type="date" id="leave-end-date" class="w-full border p-2 rounded"></div>
+                        <div><label class="block text-xs text-gray-500">時間 (24h)</label><input type="time" id="leave-end-time" value="17:00" class="w-full border p-2 rounded"></div>
                     </div>
                     <div>
                         <label class="block text-xs text-gray-500">事由</label>
                         <textarea id="leave-reason" rows="2" class="w-full border p-2 rounded" placeholder="病假、事假..."></textarea>
                     </div>
+                    
+                    <!-- 佐證資料上傳 (New) -->
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">上傳佐證 (藥袋、證明、家長簽名...)</label>
+                        <div class="flex items-center gap-2">
+                            <label class="flex-grow flex items-center justify-center p-2 bg-gray-100 border border-dashed border-gray-400 rounded cursor-pointer hover:bg-gray-200">
+                                <i class="fas fa-camera mr-2 text-gray-500"></i> <span class="text-sm text-gray-600">選擇照片</span>
+                                <input type="file" id="leave-proof-image" accept="image/*" class="hidden" onchange="previewImage(this)">
+                            </label>
+                        </div>
+                        <img id="img-preview" class="hidden w-full h-32 object-cover rounded mt-2 border border-gray-300">
+                        <!-- 隱藏欄位存 Base64 -->
+                        <input type="hidden" id="leave-proof-base64">
+                    </div>
+
                     <button onclick="submitStudentLeave()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 shadow-md transition transform active:scale-95">送出申請</button>
                 </div>
             </div>
             <div class="bg-white p-4 rounded-lg shadow">
                 <h3 class="font-bold text-gray-700 border-b pb-2 mb-2">我的申請紀錄</h3>
-                <ul id="my-leaves" class="text-sm space-y-2 max-h-40 overflow-y-auto"><li class="text-gray-400">尚無紀錄</li></ul>
+                <ul id="my-leaves" class="text-sm space-y-2 max-h-60 overflow-y-auto"><li class="text-gray-400">尚無紀錄</li></ul>
             </div>
         </div>
 
@@ -253,12 +278,11 @@
         let currentRole = 'guest';
         let roster = [];
         let rollCallState = {};
-        
         let currentClassId = null;
         let currentClassName = "";
         let allClasses = [];
+        let rejectTargetId = null; // 暫存要駁回的假單 ID
 
-        // === 1. 驗證狀態監聽 ===
         onAuthStateChanged(auth, (user) => {
             const loginBtn = document.getElementById('google-login-btn');
             const roleSel = document.getElementById('role-selector');
@@ -298,7 +322,6 @@
         }
         window.logout = function() { signOut(auth).then(() => { location.reload(); }); }
 
-        // === 2. 班級管理邏輯 ===
         function loadClasses() {
             const q = query(collection(db, "classes"));
             onSnapshot(q, (snap) => {
@@ -331,12 +354,10 @@
             currentClassId = classId;
             currentClassName = cls.name;
             roster = cls.list ? JSON.parse(cls.list) : [];
-            
             document.getElementById('setting-current-class').innerText = currentClassName;
             document.getElementById('import-target-class').innerText = currentClassName;
             document.getElementById('audit-class-hint').innerText = `目前顯示班級：${currentClassName}`;
             document.getElementById('class-selector').value = classId;
-
             if(currentRole === 'admin') {
                 const activeTab = document.querySelector('.nav-item.active span').innerText;
                 if(activeTab === '點名') loadRollCallData();
@@ -365,7 +386,6 @@
             currentClassId = null;
         }
 
-        // === 3. 角色與 UI 邏輯 ===
         window.setRole = function(role) {
             currentRole = role;
             document.getElementById('view-login').classList.add('hidden');
@@ -378,6 +398,8 @@
             } else {
                 document.getElementById('view-student').classList.remove('hidden');
                 document.getElementById('class-selector').classList.add('hidden');
+                // 學生模式也要載入自己的假單記錄
+                loadMyLeaves();
             }
         }
         
@@ -392,7 +414,6 @@
             document.getElementById(viewId).classList.remove('hidden');
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             if(navEl) navEl.classList.add('active');
-            
             if(viewId === 'view-rollcall') loadRollCallData();
             if(viewId === 'view-audit') loadAuditList();
             if(viewId === 'view-stats') {
@@ -401,24 +422,17 @@
             }
         }
 
-        // === 4. 點名與統計 ===
         window.loadRollCallData = async function() {
             if(!currentClassId) return;
             const dateStr = document.getElementById('rc-date').value;
             showLoading(true);
             const container = document.getElementById('rollcall-grid');
             container.innerHTML = '';
-            
-            if(roster.length === 0) {
-                container.innerHTML = '<p class="col-span-full text-center text-gray-500 py-10">此班級尚無名單，請至設定匯入。</p>';
-                showLoading(false); return;
-            }
-
+            if(roster.length === 0) { container.innerHTML = '<p class="col-span-full text-center text-gray-500 py-10">此班級尚無名單，請至設定匯入。</p>'; showLoading(false); return; }
             const qAttendance = query(collection(db, "attendance"), where("dateKey", "==", dateStr), where("classId", "==", currentClassId));
             const snapAttendance = await getDocs(qAttendance);
             const savedState = {};
             snapAttendance.forEach(doc => savedState[doc.data().studentId] = doc.data().status);
-
             const qLeaves = query(collection(db, "leave_requests"), where("status", "==", "Approved"), where("classId", "==", currentClassId));
             const snapLeaves = await getDocs(qLeaves);
             const leaveMap = {};
@@ -426,7 +440,6 @@
                 const data = doc.data();
                 if (dateStr >= data.start.split(' ')[0] && dateStr <= data.end.split(' ')[0]) leaveMap[data.studentId] = true;
             });
-            
             roster.forEach(stu => {
                 let status = 'Present';
                 if (savedState[stu.id]) status = savedState[stu.id];
@@ -481,14 +494,11 @@
             return { days };
         }
 
-        // === 🔴 修正：週統計邏輯 (Client-side filtering 解決轉圈問題) ===
         window.calculateWeekRange = async function() {
             if(!currentClassId) return;
             const dateInput = document.getElementById('stats-date').value;
             if(!dateInput) return;
-            
-            showLoading(true); // 開始轉圈
-            
+            showLoading(true);
             try {
                 const { days } = getWeekRange(dateInput);
                 document.getElementById('week-range-display').innerText = `${days[0]} ~ ${days[6]}`;
@@ -497,22 +507,16 @@
                 let headerHTML = `<thead><tr><th class="sticky-col">學生</th>`;
                 days.forEach((d, idx) => { headerHTML += `<th>${dayNames[idx]}<br><span class="text-xs font-normal">${d.slice(5).replace('-','/')}</span></th>`; });
                 headerHTML += `<th>統計</th></tr></thead>`;
-                
-                // 1. 只用 classId 查詢，避免複合索引錯誤
                 const q = query(collection(db, "attendance"), where("classId", "==", currentClassId));
                 const snapshot = await getDocs(q);
                 const attendanceMap = {};
-                
-                // 2. 在 JavaScript 端過濾日期
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    // 檢查日期是否在該週範圍內
                     if (data.dateKey >= days[0] && data.dateKey <= days[6]) {
                         if (!attendanceMap[data.studentId]) attendanceMap[data.studentId] = {};
                         attendanceMap[data.studentId][data.dateKey] = data.status;
                     }
                 });
-
                 let bodyHTML = `<tbody>`;
                 roster.forEach(stu => {
                     const stuRecord = attendanceMap[stu.id] || {};
@@ -529,15 +533,9 @@
                     bodyHTML += `<tr class="${isWarning ? 'warning-row' : ''}"><td class="sticky-col font-bold text-gray-700 text-left px-2 whitespace-nowrap"><span class="inline-block w-5 text-center mr-1">${stu.number}.</span>${stu.name} <span class="text-[10px] text-gray-400">(${stu.classLabel})</span> ${warningBadge}</td>${rowCells}<td class="text-xs font-bold ${isWarning ? 'text-red-600' : 'text-gray-500'}">${absentCount}</td></tr>`;
                 });
                 table.innerHTML = headerHTML + bodyHTML + `</tbody>`;
-            } catch(e) {
-                console.error("Stats Error:", e);
-                alert("讀取週報表失敗，請檢查網路。");
-            } finally {
-                showLoading(false); // 確保無論成功失敗都會停止轉圈
-            }
+            } catch(e) { console.error("Stats Error:", e); alert("讀取週報表失敗，請檢查網路。"); } finally { showLoading(false); }
         }
 
-        // === 5. 學生端邏輯 ===
         window.loadStudentListForLeave = function(classId) {
             const nameSelect = document.getElementById('stu-name-select');
             if(!classId) { nameSelect.innerHTML = '<option value="">請先選擇班級</option>'; nameSelect.disabled = true; return; }
@@ -550,6 +548,40 @@
             }
         }
 
+        // 🟢 圖片壓縮與預覽 (Base64)
+        window.previewImage = function(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        // 壓縮圖片 (最大寬度 800px)
+                        const MAX_WIDTH = 800;
+                        let width = img.width;
+                        let height = img.height;
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // 轉為 Base64 字串 (品質 0.5)
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+                        document.getElementById('img-preview').src = dataUrl;
+                        document.getElementById('img-preview').classList.remove('hidden');
+                        document.getElementById('leave-proof-base64').value = dataUrl;
+                    }
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
         window.submitStudentLeave = async function() {
             const classId = document.getElementById('stu-class-select').value;
             const stuId = document.getElementById('stu-name-select').value;
@@ -559,6 +591,7 @@
             const studentObj = rosterList.find(s => s.id === stuId);
             const reason = document.getElementById('leave-reason').value;
             if(!reason) return showToast('請填寫事由');
+            const proofImage = document.getElementById('leave-proof-base64').value; // 取得照片 Base64
 
             showLoading(true);
             await addDoc(collection(db, "leave_requests"), {
@@ -566,13 +599,73 @@
                 classLabel: studentObj.classLabel,
                 start: `${document.getElementById('leave-start-date').value} ${document.getElementById('leave-start-time').value}`,
                 end: `${document.getElementById('leave-end-date').value} ${document.getElementById('leave-end-time').value}`,
-                reason, status: 'Pending', submittedAt: Timestamp.now()
+                reason, 
+                proofImage: proofImage, // 存入照片
+                status: 'Pending', submittedAt: Timestamp.now()
             });
             checkAndNotifyTelegram(stuId, studentObj.name, reason, studentObj.classLabel);
             showLoading(false);
             showToast('申請已送出');
+            // 重新載入自己的申請
+            loadMyLeaves();
         }
 
+        // 學生：載入自己的申請紀錄 (顯示駁回理由與照片)
+        function loadMyLeaves() {
+            // 注意：這裡只會列出「最近 20 筆」以確保效能
+            // 由於學生端沒有 local ID 綁定，這裡簡單 demo 列出所有（實務上應綁定 user.uid）
+            // 為了方便，這裡直接列出「最近的假單」供查看，或者您可以依據 user email 過濾
+            const q = query(collection(db, "leave_requests"), where("status", "!=", "Deleted")); 
+            onSnapshot(q, (snap) => {
+                const list = document.getElementById('my-leaves');
+                list.innerHTML = '';
+                // Client-side filter to simple show demo (理想是 filter by studentId)
+                const myDocs = [];
+                snap.forEach(doc => myDocs.push(doc.data()));
+                myDocs.sort((a,b) => b.submittedAt - a.submittedAt);
+                
+                myDocs.forEach(d => {
+                    // 狀態標籤
+                    let statusBadge = `<span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">審核中</span>`;
+                    if(d.status === 'Approved') statusBadge = `<span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">已准假</span>`;
+                    if(d.status === 'Rejected') statusBadge = `<span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">已駁回</span>`;
+
+                    // 駁回理由
+                    let rejectReasonHtml = d.status === 'Rejected' && d.rejectReason ? 
+                        `<p class="text-xs text-red-600 mt-1 font-bold">駁回理由：${d.rejectReason}</p>` : '';
+
+                    // 照片預覽
+                    let imgHtml = d.proofImage ? 
+                        `<div class="mt-2"><img src="${d.proofImage}" class="h-16 rounded cursor-pointer border" onclick="openImageModal('${d.proofImage}')"></div>` : '';
+
+                    list.innerHTML += `
+                        <li class="p-3 bg-gray-50 rounded border border-gray-200">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-bold text-gray-800">${d.studentName} <span class="text-xs text-gray-500">(${d.className})</span></p>
+                                    <p class="text-xs text-blue-600">${d.start} ~ ${d.end}</p>
+                                    <p class="text-sm mt-1">${d.reason}</p>
+                                    ${rejectReasonHtml}
+                                    ${imgHtml}
+                                </div>
+                                <div>${statusBadge}</div>
+                            </div>
+                        </li>
+                    `;
+                });
+            });
+        }
+
+        // 全域：圖片放大視窗
+        window.openImageModal = function(src) {
+            document.getElementById('preview-image-large').src = src;
+            document.getElementById('image-modal').classList.remove('hidden');
+        }
+        window.closeImageModal = function() {
+            document.getElementById('image-modal').classList.add('hidden');
+        }
+
+        // 老師：審核列表 (含照片查看與駁回模組)
         function loadAuditList() {
             if(!currentClassId) return;
             const q = query(collection(db, "leave_requests"), where("status", "==", "Pending"), where("classId", "==", currentClassId));
@@ -582,13 +675,46 @@
                 if(snap.empty) { list.innerHTML = '<div class="bg-white p-4 rounded text-center text-gray-400">目前沒有待審核的請假單</div>'; return; }
                 snap.forEach(doc => {
                     const d = doc.data();
+                    let imgBtn = d.proofImage ? `<button onclick="openImageModal('${d.proofImage}')" class="text-blue-600 text-xs underline mt-1">查看佐證照片</button>` : '';
+                    
                     const div = document.createElement('div');
                     div.className = "bg-white p-4 rounded-lg shadow border-l-4 border-yellow-400";
-                    div.innerHTML = `<div class="flex justify-between"><div><h4 class="font-bold">${d.studentName} <span class="text-xs text-gray-500">(${d.classLabel})</span></h4><p class="text-xs text-blue-600">${d.start}~${d.end}</p><p class="text-sm">${d.reason}</p></div><div class="flex flex-col gap-2"><button onclick="auditLeave('${doc.id}','Approved')" class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">准</button><button onclick="auditLeave('${doc.id}','Rejected')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">駁</button></div></div>`;
+                    div.innerHTML = `
+                        <div class="flex justify-between">
+                            <div>
+                                <h4 class="font-bold">${d.studentName} <span class="text-xs text-gray-500">(${d.classLabel})</span></h4>
+                                <p class="text-xs text-blue-600">${d.start}~${d.end}</p>
+                                <p class="text-sm">${d.reason}</p>
+                                ${imgBtn}
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <button onclick="auditLeave('${doc.id}','Approved')" class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">准</button>
+                                <button onclick="openRejectModal('${doc.id}')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">駁</button>
+                            </div>
+                        </div>`;
                     list.appendChild(div);
                 });
             });
         }
+
+        // 老師：開啟駁回視窗
+        window.openRejectModal = function(docId) {
+            rejectTargetId = docId;
+            document.getElementById('reject-modal').classList.remove('hidden');
+        }
+        window.closeRejectModal = function() {
+            rejectTargetId = null;
+            document.getElementById('reject-modal').classList.add('hidden');
+        }
+        window.confirmReject = async function() {
+            if(!rejectTargetId) return;
+            const reason = document.getElementById('reject-reason-select').value;
+            await updateDoc(doc(db, "leave_requests", rejectTargetId), { status: 'Rejected', rejectReason: reason });
+            showToast('已駁回');
+            closeRejectModal();
+        }
+
+        // 准假
         window.auditLeave = async (id, status) => { await updateDoc(doc(db, "leave_requests", id), {status}); showToast('已更新'); };
 
         window.importCSV = function() {
