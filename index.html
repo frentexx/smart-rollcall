@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智慧校園點名系統 PWA (校園版)</title>
+    <title>智慧校園點名系統 PWA (課後班專用)</title>
     <meta name="theme-color" content="#3b82f6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -241,7 +241,7 @@
             <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-cog text-gray-500 mr-2"></i>系統設定</h2>
             <div class="bg-white p-4 rounded-lg shadow mb-6">
                 <h3 class="font-bold text-gray-700 mb-2">匯入學生名單 (CSV)</h3>
-                <p class="text-xs text-gray-500 mb-3">格式：學號, 姓名 (支援 Big5/UTF-8)</p>
+                <p class="text-xs text-gray-500 mb-3">格式：平時班級, 姓名 (支援 Big5/UTF-8)</p>
                 <div class="flex gap-2">
                     <input type="file" id="csv-file" accept=".csv" class="text-sm w-full">
                     <button onclick="importCSV()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm whitespace-nowrap">匯入</button>
@@ -319,7 +319,7 @@
         import { getFirestore, doc, collection, addDoc, updateDoc, setDoc, query, where, onSnapshot, Timestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // === Firebase 配置 (已更新為 MyRollCall 專案) ===
+        // === Firebase 配置 (MyRollCall) ===
         const firebaseConfig = {
             apiKey: "AIzaSyDh06vfx4fW3kdosjRUOc9TaKidnp1gBjY",
             authDomain: "myrollcall-5f4b1.firebaseapp.com",
@@ -340,8 +340,6 @@
         let rollCallState = {};
 
         // === 1. Google 登入邏輯 (含網域檢查) ===
-        
-        // 監聽登入狀態
         onAuthStateChanged(auth, (user) => {
             const loginBtn = document.getElementById('google-login-btn');
             const roleSel = document.getElementById('role-selector');
@@ -349,50 +347,39 @@
             const userInfo = document.getElementById('current-user-info');
 
             if (user) {
-                // 檢查 Email 網域
-                // ⚠️ 如果需要測試個人帳號，請修改下方條件為: 
-                // if (user.email.endsWith('@ppsh.ptc.edu.tw') || user.email === '您的@gmail.com')
+                // ⚠️ 若需測試個人帳號: if (user.email.endsWith('@ppsh.ptc.edu.tw') || user.email === '您的@gmail.com')
                 if (user.email.endsWith('@ppsh.ptc.edu.tw')) {
                     console.log("網域驗證成功:", user.email);
                     userInfo.innerText = user.email;
-                    
-                    // UI 切換
                     loginBtn.classList.add('hidden');
                     roleSel.classList.remove('hidden');
                     logoutBtn.classList.remove('hidden');
-                    
-                    // 啟動資料載入
                     loadRosterFromDB();
                 } else {
-                    // 網域錯誤 -> 強制登出
                     console.warn("網域錯誤:", user.email);
-                    showToast('錯誤：限 @ppsh.ptc.edu.tw 網域使用', true); // true for alert style
+                    showToast('錯誤：限 @ppsh.ptc.edu.tw 網域使用', true);
                     setTimeout(() => signOut(auth), 2000);
                 }
             } else {
-                // 未登入
                 userInfo.innerText = "訪客模式";
                 loginBtn.classList.remove('hidden');
                 roleSel.classList.add('hidden');
                 logoutBtn.classList.add('hidden');
                 document.getElementById('view-login').classList.remove('hidden');
-                // 隱藏所有功能頁面
                 document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
                 document.getElementById('admin-nav').classList.add('hidden');
             }
         });
 
-        // 登入按鈕功能
         window.loginWithGoogle = function() {
             const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({ prompt: 'select_account' }); // 強制選擇帳號
+            provider.setCustomParameters({ prompt: 'select_account' });
             signInWithPopup(auth, provider).catch(err => {
                 console.error("Login Failed", err);
                 showToast('登入取消或失敗');
             });
         }
 
-        // 登出功能
         window.logout = function() {
             signOut(auth).then(() => {
                 location.reload();
@@ -400,11 +387,9 @@
         }
 
         // === 2. 角色與 UI 邏輯 ===
-
         window.setRole = function(role) {
             currentRole = role;
             document.getElementById('view-login').classList.add('hidden');
-            
             if (role === 'admin') {
                 document.getElementById('admin-nav').classList.remove('hidden');
                 switchTab('view-rollcall', document.querySelector('.nav-item'));
@@ -417,17 +402,10 @@
             }
         }
         
-        window.showAdminLogin = function() {
-            document.getElementById('admin-login-box').classList.remove('hidden');
-        }
-
+        window.showAdminLogin = function() { document.getElementById('admin-login-box').classList.remove('hidden'); }
         window.checkAdmin = function() {
             const pwd = document.getElementById('admin-pwd').value;
-            if(pwd === 'admin123') { 
-                setRole('admin');
-            } else {
-                showToast('密碼錯誤');
-            }
+            if(pwd === 'admin123') { setRole('admin'); } else { showToast('密碼錯誤'); }
         }
 
         window.switchTab = function(viewId, navEl) {
@@ -442,7 +420,6 @@
         }
 
         // === 3. 核心功能: 週統計 ===
-
         window.getWeekRange = function(dateStr) {
             const date = new Date(dateStr);
             const day = date.getDay();
@@ -450,7 +427,6 @@
             const monday = new Date(date);
             monday.setDate(diffToMon);
             monday.setHours(0,0,0,0);
-            
             const days = [];
             for (let i = 0; i < 7; i++) {
                 const d = new Date(monday);
@@ -480,6 +456,7 @@
             const attendanceMap = {};
             snapshot.forEach(doc => {
                 const data = doc.data();
+                // 這裡的 studentId 是系統唯一碼 (UUID)
                 if (!attendanceMap[data.studentId]) attendanceMap[data.studentId] = {};
                 attendanceMap[data.studentId][data.dateKey] = data.status;
             });
@@ -497,8 +474,11 @@
                 });
                 const isWarning = absentCount > 4;
                 const warningBadge = isWarning ? '<span class="warning-badge">⚠️</span>' : '';
+                // 顯示平時班級在名字旁
                 bodyHTML += `<tr class="${isWarning ? 'warning-row' : ''}">
-                    <td class="sticky-col font-bold text-gray-700 text-left px-2 whitespace-nowrap">${stu.number}. ${stu.name} ${warningBadge}</td>
+                    <td class="sticky-col font-bold text-gray-700 text-left px-2 whitespace-nowrap">
+                        <span class="inline-block w-5 text-center mr-1">${stu.number}.</span>${stu.name} <span class="text-[10px] text-gray-400">(${stu.classLabel})</span> ${warningBadge}
+                    </td>
                     ${rowCells}
                     <td class="text-xs font-bold ${isWarning ? 'text-red-600' : 'text-gray-500'}">${absentCount}</td></tr>`;
             });
@@ -506,8 +486,7 @@
             showLoading(false);
         }
 
-        // === 4. 資料庫與點名邏輯 ===
-
+        // === 4. 資料庫與點名邏輯 (修正 ID 衝突) ===
         function loadRosterFromDB() {
             onSnapshot(doc(db, "roster", "class_data"), (docSnap) => {
                 if (docSnap.exists()) {
@@ -532,23 +511,32 @@
             snapshot.forEach(doc => savedState[doc.data().studentId] = doc.data().status);
             
             roster.forEach(stu => {
-                const status = savedState[stu.id] || 'Present';
+                const status = savedState[stu.id] || 'Present'; // 這裡使用唯一 ID (stu.id)
                 rollCallState[stu.id] = status;
+                
                 const btn = document.createElement('div');
                 btn.className = `rollcall-btn rc-${status}`;
-                btn.id = `btn-${stu.id}`;
+                btn.id = `btn-${stu.id}`; // 按鈕 ID 使用唯一碼
+                // 傳遞唯一碼給 toggle 函式，解決衝突
                 btn.onclick = () => toggleStatus(stu.id);
-                btn.innerHTML = `<span class="text-2xl font-bold">${stu.number}</span><span class="text-xs mt-1 truncate w-full text-center px-1">${stu.name}</span><span class="text-[10px] opacity-80 status-text">${status==='Present'?'到':status==='Absent'?'缺':status==='Late'?'遲':'假'}</span>`;
+                
+                // 顯示：座號、姓名、(平時班級)
+                btn.innerHTML = `
+                    <span class="text-2xl font-bold">${stu.number}</span>
+                    <span class="text-xs mt-1 truncate w-full text-center px-1 font-bold">${stu.name}</span>
+                    <span class="text-[10px] opacity-80">${stu.classLabel}</span>
+                    <span class="text-[10px] opacity-80 status-text mt-1">${status==='Present'?'到':status==='Absent'?'缺':status==='Late'?'遲':'假'}</span>
+                `;
                 container.appendChild(btn);
             });
             showLoading(false);
         }
 
-        window.toggleStatus = function(stuId) {
+        window.toggleStatus = function(uniqueId) {
             const types = ['Present', 'Absent', 'Late', 'Leave'];
-            const next = types[(types.indexOf(rollCallState[stuId]) + 1) % types.length];
-            rollCallState[stuId] = next;
-            const btn = document.getElementById(`btn-${stuId}`);
+            const next = types[(types.indexOf(rollCallState[uniqueId]) + 1) % types.length];
+            rollCallState[uniqueId] = next;
+            const btn = document.getElementById(`btn-${uniqueId}`);
             btn.className = `rollcall-btn rc-${next}`;
             btn.querySelector('.status-text').innerText = next==='Present'?'到':next==='Absent'?'缺':next==='Late'?'遲':'假';
         }
@@ -558,20 +546,27 @@
             showLoading(true);
             const batch = writeBatch(db);
             roster.map(stu => {
+                // 儲存時使用唯一 ID
                 const docRef = doc(db, "attendance", `${dateStr}_${stu.id}`);
-                batch.set(docRef, { studentId: stu.id, name: stu.name, dateKey: dateStr, status: rollCallState[stu.id], timestamp: Timestamp.now() });
+                batch.set(docRef, { 
+                    studentId: stu.id, // 唯一碼
+                    name: stu.name, 
+                    classLabel: stu.classLabel, // 記錄平時班級以供參考
+                    dateKey: dateStr, 
+                    status: rollCallState[stu.id], 
+                    timestamp: Timestamp.now() 
+                });
             });
             await batch.commit();
             showLoading(false);
             showToast('點名紀錄已儲存');
         }
 
-        // === 5. 請假、審核、匯入 ===
-
+        // === 5. 請假、審核、匯入 (修正匯入邏輯) ===
         function populateStudentSelect() {
             const sel = document.getElementById('stu-select-self');
             sel.innerHTML = '<option value="">請選擇您的姓名</option>';
-            roster.forEach(stu => sel.innerHTML += `<option value="${stu.id},${stu.name}">${stu.number}. ${stu.name}</option>`);
+            roster.forEach(stu => sel.innerHTML += `<option value="${stu.id},${stu.name}">${stu.number}. ${stu.name} (${stu.classLabel})</option>`);
         }
 
         window.submitStudentLeave = async function() {
@@ -581,13 +576,19 @@
             if(!id || !reason) return showToast('請填寫完整資訊');
 
             showLoading(true);
+            // 找到該學生的完整資料以獲取平時班級
+            const studentObj = roster.find(s => s.id === id);
+            const classLbl = studentObj ? studentObj.classLabel : "";
+
             await addDoc(collection(db, "leave_requests"), {
-                studentId: id, studentName: name,
+                studentId: id, 
+                studentName: name,
+                classLabel: classLbl,
                 start: `${document.getElementById('leave-start-date').value} ${document.getElementById('leave-start-time').value}`,
                 end: `${document.getElementById('leave-end-date').value} ${document.getElementById('leave-end-time').value}`,
                 reason, status: 'Pending', submittedAt: Timestamp.now()
             });
-            checkAndNotifyTelegram(id, name, reason);
+            checkAndNotifyTelegram(id, name, reason, classLbl);
             showLoading(false);
             showToast('申請已送出');
         }
@@ -601,14 +602,24 @@
                     const d = doc.data();
                     const div = document.createElement('div');
                     div.className = "bg-white p-4 rounded-lg shadow border-l-4 border-yellow-400";
-                    div.innerHTML = `<div class="flex justify-between"><div><h4 class="font-bold">${d.studentName}</h4><p class="text-xs text-blue-600">${d.start}~${d.end}</p><p class="text-sm">${d.reason}</p></div>
-                    <div class="flex flex-col gap-2"><button onclick="auditLeave('${doc.id}','Approved')" class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">准</button><button onclick="auditLeave('${doc.id}','Rejected')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">駁</button></div></div>`;
+                    div.innerHTML = `<div class="flex justify-between">
+                        <div>
+                            <h4 class="font-bold">${d.studentName} <span class="text-xs text-gray-500">(${d.classLabel || '未知班級'})</span></h4>
+                            <p class="text-xs text-blue-600">${d.start}~${d.end}</p>
+                            <p class="text-sm">${d.reason}</p>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button onclick="auditLeave('${doc.id}','Approved')" class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">准</button>
+                            <button onclick="auditLeave('${doc.id}','Rejected')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">駁</button>
+                        </div>
+                    </div>`;
                     list.appendChild(div);
                 });
             });
         }
         window.auditLeave = async (id, status) => { await updateDoc(doc(db, "leave_requests", id), {status}); showToast('已更新'); };
 
+        // 🟢 修正後的匯入 CSV 函式
         window.importCSV = function() {
             const file = document.getElementById('csv-file').files[0];
             if (!file) return;
@@ -616,13 +627,33 @@
             reader.onload = async (e) => {
                 const lines = e.target.result.split('\n');
                 const newRoster = [];
-                for(let i=1; i<lines.length; i++) {
+                // 假設 CSV 格式: 平時班級, 姓名 (無標題或有標題皆可處理，這裡假設第一行是資料若不是數字可略過)
+                let startIdx = 0;
+                // 簡單檢查第一行是否為標題，如果是 "班級,姓名" 則跳過
+                if (lines[0].includes("班級") || lines[0].includes("Class")) startIdx = 1;
+
+                let seatCounter = 1;
+                for(let i=startIdx; i<lines.length; i++) {
                     const c = lines[i].split(',');
-                    if(c.length>=2 && c[0].trim()) newRoster.push({id: c[0].trim(), name: c[1].trim(), number: i});
+                    if(c.length>=2 && c[0].trim()) {
+                        // 產生唯一亂數 ID，避免平時班級重複造成衝突
+                        const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+                        
+                        newRoster.push({
+                            id: uniqueId,          // 系統內部唯一碼
+                            classLabel: c[0].trim(), // 平時班級 (顯示用)
+                            name: c[1].trim(),     // 姓名
+                            number: seatCounter++  // 課後班座號 (自動編號)
+                        });
+                    }
                 }
+                
                 if(newRoster.length) {
-                    await setDoc(doc(db, "roster", "class_data"), { list: JSON.stringify(newRoster), updatedAt: Timestamp.now() });
-                    showToast(`匯入 ${newRoster.length} 筆`);
+                    // 警告：這會覆蓋舊名單
+                    if(confirm(`即將匯入 ${newRoster.length} 筆資料。注意：重新匯入會導致舊的出席紀錄無法對應到新名單(因為ID重置)，確定嗎？`)) {
+                        await setDoc(doc(db, "roster", "class_data"), { list: JSON.stringify(newRoster), updatedAt: Timestamp.now() });
+                        showToast(`匯入成功！`);
+                    }
                 }
             };
             try { reader.readAsText(file, 'Big5'); } catch { reader.readAsText(file); }
@@ -634,7 +665,7 @@
             localStorage.setItem('tg_chatid', document.getElementById('tg-chatid').value);
             showToast('已儲存');
         }
-        async function checkAndNotifyTelegram(id, name, reason) {
+        async function checkAndNotifyTelegram(id, name, reason, classLabel) {
             const token = localStorage.getItem('tg_token'), chat = localStorage.getItem('tg_chatid');
             if(!token || !chat) return;
             let warning = "";
@@ -642,9 +673,12 @@
                 const snap = await getDocs(query(collection(db, "attendance"), where("studentId", "==", id), where("status", "==", "Absent")));
                 if(snap.size > 4) warning = "\n⚠️ [系統預警] 曠課 > 4";
             } catch(e){}
+            
+            const msg = `📝 *假單*\n學生: ${name} (${classLabel})\n事由: ${reason}${warning}`;
+            
             fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ chat_id: chat, text: `📝 *假單*\n${name} (${id})\n事由: ${reason}${warning}`, parse_mode: 'Markdown' })
+                body: JSON.stringify({ chat_id: chat, text: msg, parse_mode: 'Markdown' })
             });
         }
 
