@@ -81,7 +81,7 @@
                 <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl"><i class="fas fa-school"></i></div>
                 <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
                 <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
-                <p class="text-xs text-gray-400 mt-4">System Ver: 4.1 (TG Fix)</p>
+                <p class="text-xs text-gray-400 mt-4">System Ver: 4.2 (Stable Stats)</p>
             </div>
             
             <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full max-w-xs py-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center gap-3">
@@ -93,7 +93,12 @@
                 <p class="text-center text-green-600 font-bold mb-2"><i class="fas fa-check-circle mr-1"></i>驗證成功！請選擇身份：</p>
                 <button onclick="setRole('student')" class="w-full py-4 bg-white border-2 border-blue-500 text-blue-600 font-bold rounded-xl shadow-sm hover:bg-blue-50 transition flex items-center justify-center gap-3"><i class="fas fa-user-graduate"></i> 我是學生</button>
                 <button onclick="showAdminLogin()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center gap-3"><i class="fas fa-chalkboard-teacher"></i> 我是老師/管理員</button>
-                <div id="admin-login-box" class="hidden w-full bg-white p-4 rounded-xl shadow border mt-2"><input type="password" id="admin-pwd" placeholder="輸入管理密碼 (admin123)" class="w-full p-2 border rounded mb-2"><button onclick="checkAdmin()" class="w-full bg-indigo-800 text-white py-2 rounded font-semibold">確認進入</button></div>
+                
+                <!-- 管理員密碼輸入 (已移除提示語) -->
+                <div id="admin-login-box" class="hidden w-full bg-white p-4 rounded-xl shadow border mt-2">
+                    <input type="password" id="admin-pwd" placeholder="請輸入管理密碼" class="w-full p-2 border rounded mb-2">
+                    <button onclick="checkAdmin()" class="w-full bg-indigo-800 text-white py-2 rounded font-semibold">確認進入</button>
+                </div>
             </div>
         </div>
 
@@ -155,7 +160,6 @@
             
             <div class="bg-white p-4 rounded-lg shadow">
                 <h3 class="font-bold text-gray-700 mb-2">Telegram 推播設定 (全校通用)</h3>
-                <p class="text-xs text-gray-400 mb-2">設定後將存入資料庫，所有裝置同步生效。</p>
                 <div class="space-y-2">
                     <input type="text" id="tg-token" placeholder="Bot Token" class="w-full border p-2 rounded text-sm">
                     <input type="text" id="tg-chatid" placeholder="Chat ID" class="w-full border p-2 rounded text-sm">
@@ -183,12 +187,25 @@
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
-                        <div><label class="block text-xs text-gray-500">開始日期</label><input type="date" id="leave-start-date" class="w-full border p-2 rounded"></div>
-                        <div><label class="block text-xs text-gray-500">時間</label><input type="time" id="leave-start-time" value="08:00" class="w-full border p-2 rounded"></div>
+                        <div>
+                            <label class="block text-xs text-gray-500">開始日期</label>
+                            <input type="date" id="leave-start-date" class="w-full border p-2 rounded">
+                        </div>
+                        <div>
+                            <!-- 修正：明確標示為 24小時制 -->
+                            <label class="block text-xs text-gray-500">時間 (24h)</label>
+                            <input type="time" id="leave-start-time" value="08:00" class="w-full border p-2 rounded">
+                        </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div><label class="block text-xs text-gray-500">結束日期</label><input type="date" id="leave-end-date" class="w-full border p-2 rounded"></div>
-                        <div><label class="block text-xs text-gray-500">時間</label><input type="time" id="leave-end-time" value="17:00" class="w-full border p-2 rounded"></div>
+                        <div>
+                            <label class="block text-xs text-gray-500">結束日期</label>
+                            <input type="date" id="leave-end-date" class="w-full border p-2 rounded">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500">時間 (24h)</label>
+                            <input type="time" id="leave-end-time" value="17:00" class="w-full border p-2 rounded">
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs text-gray-500">事由</label>
@@ -237,7 +254,6 @@
         let roster = [];
         let rollCallState = {};
         
-        // Ver 4.0: 多班級狀態
         let currentClassId = null;
         let currentClassName = "";
         let allClasses = [];
@@ -258,7 +274,6 @@
                     roleSel.classList.remove('hidden');
                     logoutBtn.classList.remove('hidden');
                     loadClasses();
-                    // 老師登入時自動載入 TG 設定到輸入框 (方便查看)
                     loadTgSettingsToUI();
                 } else {
                     console.warn("網域錯誤:", user.email);
@@ -290,18 +305,14 @@
                 allClasses = [];
                 const selector = document.getElementById('class-selector');
                 const stuClassSelector = document.getElementById('stu-class-select');
-                
                 selector.innerHTML = '';
                 stuClassSelector.innerHTML = '<option value="">-- 請選擇班級 --</option>';
-
                 if(snap.empty) { selector.innerHTML = '<option value="">無班級</option>'; return; }
-
                 snap.forEach(doc => {
                     allClasses.push({ id: doc.id, ...doc.data() });
                     selector.innerHTML += `<option value="${doc.id}">${doc.data().name}</option>`;
                     stuClassSelector.innerHTML += `<option value="${doc.id}">${doc.data().name}</option>`;
                 });
-
                 if (allClasses.length > 0) {
                     if (!currentClassId || !allClasses.find(c => c.id === currentClassId)) {
                         switchClass(allClasses[0].id);
@@ -381,6 +392,7 @@
             document.getElementById(viewId).classList.remove('hidden');
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             if(navEl) navEl.classList.add('active');
+            
             if(viewId === 'view-rollcall') loadRollCallData();
             if(viewId === 'view-audit') loadAuditList();
             if(viewId === 'view-stats') {
@@ -469,44 +481,60 @@
             return { days };
         }
 
+        // === 🔴 修正：週統計邏輯 (Client-side filtering 解決轉圈問題) ===
         window.calculateWeekRange = async function() {
             if(!currentClassId) return;
             const dateInput = document.getElementById('stats-date').value;
             if(!dateInput) return;
-            showLoading(true);
-            const { days } = getWeekRange(dateInput);
-            document.getElementById('week-range-display').innerText = `${days[0]} ~ ${days[6]}`;
-            const table = document.getElementById('weekly-stats-table');
-            const dayNames = ['一', '二', '三', '四', '五', '六', '日'];
-            let headerHTML = `<thead><tr><th class="sticky-col">學生</th>`;
-            days.forEach((d, idx) => { headerHTML += `<th>${dayNames[idx]}<br><span class="text-xs font-normal">${d.slice(5).replace('-','/')}</span></th>`; });
-            headerHTML += `<th>統計</th></tr></thead>`;
             
-            const q = query(collection(db, "attendance"), where("dateKey", ">=", days[0]), where("dateKey", "<=", days[6]), where("classId", "==", currentClassId));
-            const snapshot = await getDocs(q);
-            const attendanceMap = {};
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                if (!attendanceMap[data.studentId]) attendanceMap[data.studentId] = {};
-                attendanceMap[data.studentId][data.dateKey] = data.status;
-            });
-            let bodyHTML = `<tbody>`;
-            roster.forEach(stu => {
-                const stuRecord = attendanceMap[stu.id] || {};
-                let absentCount = 0;
-                let rowCells = '';
-                days.forEach(day => {
-                    const status = stuRecord[day] || '-';
-                    if (status === 'Absent') absentCount++;
-                    const label = status === 'Present' ? '到' : status === 'Absent' ? '曠' : status === 'Late' ? '遲' : status === 'Leave' ? '假' : '-';
-                    rowCells += `<td class="status-cell ${status}">${label}</td>`;
+            showLoading(true); // 開始轉圈
+            
+            try {
+                const { days } = getWeekRange(dateInput);
+                document.getElementById('week-range-display').innerText = `${days[0]} ~ ${days[6]}`;
+                const table = document.getElementById('weekly-stats-table');
+                const dayNames = ['一', '二', '三', '四', '五', '六', '日'];
+                let headerHTML = `<thead><tr><th class="sticky-col">學生</th>`;
+                days.forEach((d, idx) => { headerHTML += `<th>${dayNames[idx]}<br><span class="text-xs font-normal">${d.slice(5).replace('-','/')}</span></th>`; });
+                headerHTML += `<th>統計</th></tr></thead>`;
+                
+                // 1. 只用 classId 查詢，避免複合索引錯誤
+                const q = query(collection(db, "attendance"), where("classId", "==", currentClassId));
+                const snapshot = await getDocs(q);
+                const attendanceMap = {};
+                
+                // 2. 在 JavaScript 端過濾日期
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    // 檢查日期是否在該週範圍內
+                    if (data.dateKey >= days[0] && data.dateKey <= days[6]) {
+                        if (!attendanceMap[data.studentId]) attendanceMap[data.studentId] = {};
+                        attendanceMap[data.studentId][data.dateKey] = data.status;
+                    }
                 });
-                const isWarning = absentCount > 4;
-                const warningBadge = isWarning ? '<span class="warning-badge">⚠️</span>' : '';
-                bodyHTML += `<tr class="${isWarning ? 'warning-row' : ''}"><td class="sticky-col font-bold text-gray-700 text-left px-2 whitespace-nowrap"><span class="inline-block w-5 text-center mr-1">${stu.number}.</span>${stu.name} <span class="text-[10px] text-gray-400">(${stu.classLabel})</span> ${warningBadge}</td>${rowCells}<td class="text-xs font-bold ${isWarning ? 'text-red-600' : 'text-gray-500'}">${absentCount}</td></tr>`;
-            });
-            table.innerHTML = headerHTML + bodyHTML + `</tbody>`;
-            showLoading(false);
+
+                let bodyHTML = `<tbody>`;
+                roster.forEach(stu => {
+                    const stuRecord = attendanceMap[stu.id] || {};
+                    let absentCount = 0;
+                    let rowCells = '';
+                    days.forEach(day => {
+                        const status = stuRecord[day] || '-';
+                        if (status === 'Absent') absentCount++;
+                        const label = status === 'Present' ? '到' : status === 'Absent' ? '曠' : status === 'Late' ? '遲' : status === 'Leave' ? '假' : '-';
+                        rowCells += `<td class="status-cell ${status}">${label}</td>`;
+                    });
+                    const isWarning = absentCount > 4;
+                    const warningBadge = isWarning ? '<span class="warning-badge">⚠️</span>' : '';
+                    bodyHTML += `<tr class="${isWarning ? 'warning-row' : ''}"><td class="sticky-col font-bold text-gray-700 text-left px-2 whitespace-nowrap"><span class="inline-block w-5 text-center mr-1">${stu.number}.</span>${stu.name} <span class="text-[10px] text-gray-400">(${stu.classLabel})</span> ${warningBadge}</td>${rowCells}<td class="text-xs font-bold ${isWarning ? 'text-red-600' : 'text-gray-500'}">${absentCount}</td></tr>`;
+                });
+                table.innerHTML = headerHTML + bodyHTML + `</tbody>`;
+            } catch(e) {
+                console.error("Stats Error:", e);
+                alert("讀取週報表失敗，請檢查網路。");
+            } finally {
+                showLoading(false); // 確保無論成功失敗都會停止轉圈
+            }
         }
 
         // === 5. 學生端邏輯 ===
@@ -540,7 +568,6 @@
                 end: `${document.getElementById('leave-end-date').value} ${document.getElementById('leave-end-time').value}`,
                 reason, status: 'Pending', submittedAt: Timestamp.now()
             });
-            // 修正：從 DB 讀取 Token 發送
             checkAndNotifyTelegram(stuId, studentObj.name, reason, studentObj.classLabel);
             showLoading(false);
             showToast('申請已送出');
@@ -594,9 +621,6 @@
             try { reader.readAsText(file, 'Big5'); } catch { reader.readAsText(file); }
         }
 
-        // === 6. Telegram 設定同步邏輯 (Ver 4.1) ===
-        
-        // 老師：載入設定到 UI
         async function loadTgSettingsToUI() {
             const docSnap = await getDoc(doc(db, "system", "telegram_config"));
             if (docSnap.exists()) {
@@ -605,40 +629,24 @@
             }
         }
 
-        // 老師：儲存設定到資料庫
         window.saveTgSettings = async () => {
             const token = document.getElementById('tg-token').value;
             const chatId = document.getElementById('tg-chatid').value;
             if(!token || !chatId) return alert("請輸入完整 Token 與 Chat ID");
-            
             showLoading(true);
-            // 寫入 system/telegram_config (確保資料庫規則允許寫入 system 集合)
             await setDoc(doc(db, "system", "telegram_config"), { token, chatId });
             showLoading(false);
             showToast('已儲存至雲端');
         }
 
-        // 學生：從資料庫讀取設定並發送
         async function checkAndNotifyTelegram(id, name, reason, classLabel) {
-            // 1. 從資料庫抓 Token
             const docSnap = await getDoc(doc(db, "system", "telegram_config"));
-            if (!docSnap.exists()) return console.log("Telegram config not found in DB");
-            
+            if (!docSnap.exists()) return console.log("Telegram config not found");
             const { token, chatId } = docSnap.data();
             if(!token || !chatId) return;
-
             let warning = "";
             try { const snap = await getDocs(query(collection(db, "attendance"), where("studentId", "==", id), where("status", "==", "Absent"))); if(snap.size > 4) warning = "\n⚠️ [系統預警] 曠課 > 4"; } catch(e){}
-            
-            // 修正：Class Name 顯示問題
-            // 由於這裡是異步呼叫，currentClassName 變數在學生端是空的(因為沒選上方選單)
-            // 但我們在 submit 時已經從 targetClass 抓到了 className 存入 DB
-            // 這裡簡單顯示 classLabel (平時班級) 即可，重點是通知送出
-            
-            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ chat_id: chatId, text: `📝 *假單*\n學生: ${name} (${classLabel})\n事由: ${reason}${warning}`, parse_mode: 'Markdown' })
-            });
+            fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ chat_id: chatId, text: `📝 *假單*\n學生: ${name} (${classLabel})\n事由: ${reason}${warning}`, parse_mode: 'Markdown' }) });
         }
 
         function showLoading(b) { document.getElementById('loading').classList.toggle('hidden', !b); }
