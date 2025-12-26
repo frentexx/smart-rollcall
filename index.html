@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智慧校園點名系統 PWA (LINE優化版)</title>
+    <title>智慧校園點名系統 PWA</title>
     <meta name="theme-color" content="#3b82f6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,28 +19,30 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         
-        /* LINE 引導遮罩樣式 */
+        /* LINE 引導遮罩樣式 (Ver 5.3 修正版) */
         #line-blocker {
-            display: none; /* 預設隱藏 */
+            display: none;
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
+            background-color: rgba(0, 0, 0, 0.92);
             z-index: 9999;
             color: white;
             text-align: center;
-            padding-top: 100px;
+            padding-top: 150px;
         }
-        .arrow-icon {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 3rem;
-            animation: bounce 1.5s infinite;
+        /* 右上角箭頭 (一般 Android) */
+        .arrow-top-right {
+            position: absolute; top: 20px; right: 20px; font-size: 3rem; color: #fbbf24;
+            animation: bounce-top 1.5s infinite;
         }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+        /* 右下角箭頭 (Vivo / iOS) */
+        .arrow-bottom-right {
+            position: absolute; bottom: 40px; right: 20px; font-size: 3rem; color: #fbbf24;
+            transform: rotate(180deg); /* 箭頭朝下 */
+            animation: bounce-bottom 1.5s infinite;
         }
+        @keyframes bounce-top { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+        @keyframes bounce-bottom { 0%, 100% { transform: rotate(180deg) translateY(0); } 50% { transform: rotate(180deg) translateY(10px); } }
 
         .weekly-table-container { overflow-x: auto; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background: white; }
         .weekly-table { min-width: 800px; width: 100%; border-collapse: collapse; }
@@ -73,22 +75,38 @@
     </style>
 
     <script>
-        // 🟢 LINE 瀏覽器偵測與攔截腳本 (放在最前面執行)
+        // 🟢 LINE 瀏覽器自動處理腳本 (Ver 5.3)
         (function() {
             const ua = navigator.userAgent || navigator.vendor || window.opera;
-            // 偵測是否為 LINE 內建瀏覽器
+            // 判斷是否為 LINE 內建瀏覽器
             if (ua.indexOf("Line") > -1) {
-                // 如果是 LINE，顯示遮罩，隱藏本體
+                // 1. 嘗試自動跳轉：檢查網址是否已包含 magic parameter
+                if (window.location.search.indexOf("openExternalBrowser=1") === -1) {
+                    // 如果沒有，加上參數並強制重整，觸發 LINE 的自動跳轉機制
+                    var separator = window.location.search ? "&" : "?";
+                    window.location.href = window.location.href + separator + "openExternalBrowser=1";
+                    return; // 停止執行後續代碼，等待跳轉
+                }
+
+                // 2. 如果程式執行到這裡，代表自動跳轉失敗（使用者按了取消，或不支援）
+                // 顯示全螢幕遮罩，引導手動開啟
                 document.write(`
                     <div id="line-blocker" style="display:block;">
-                        <div class="arrow-icon">⤴</div>
-                        <h2 class="text-2xl font-bold mb-4">請使用外部瀏覽器</h2>
-                        <p class="mb-6 px-4">LINE 瀏覽器不支援 Google 登入功能。</p>
-                        <p class="text-yellow-300 font-bold px-4">請點擊右上角選單 <i class="fas fa-ellipsis-v"></i><br>選擇「使用預設瀏覽器開啟」</p>
-                        <div class="mt-8 text-sm text-gray-400">Android: Chrome / iOS: Safari</div>
+                        <div class="arrow-top-right">⤴</div>
+                        <div class="arrow-bottom-right">⤴</div>
+                        <h2 class="text-2xl font-bold mb-4">⚠️ 無法在 LINE 中使用</h2>
+                        <p class="mb-2 px-4 text-lg">系統偵測到您正在使用 LINE 瀏覽器</p>
+                        <p class="mb-8 px-4 text-gray-300 text-sm">這會導致 Google 登入驗證失敗</p>
+                        
+                        <div class="bg-gray-800 p-4 rounded-xl mx-4 border border-yellow-500">
+                            <p class="text-yellow-400 font-bold text-lg mb-2">👇 請依照指示操作 👇</p>
+                            <p class="text-white">點擊螢幕 <span class="text-yellow-300 font-bold text-xl">右上角</span> 或 <span class="text-yellow-300 font-bold text-xl">右下角</span> 的選單按鈕</p>
+                            <div class="my-2 text-2xl"><i class="fas fa-ellipsis-v"></i> 或 <i class="fas fa-share-square"></i></div>
+                            <p class="text-white">選擇 <span class="text-green-400 font-bold text-lg">「使用預設瀏覽器開啟」</span></p>
+                        </div>
+                        <div class="mt-8 text-sm text-gray-500">Android: Chrome / iOS: Safari</div>
                     </div>
                 `);
-                // 停止後續載入 (稍微暴力但有效)
                 document.execCommand('Stop');
                 window.stop(); 
             }
@@ -154,7 +172,7 @@
                 <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl"><i class="fas fa-school"></i></div>
                 <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
                 <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
-                <p class="text-xs text-gray-400 mt-4">System Ver: 5.2 (LINE Safe)</p>
+                <p class="text-xs text-gray-400 mt-4">System Ver: 5.3 (Auto-Jump)</p>
             </div>
             
             <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full max-w-xs py-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center gap-3">
