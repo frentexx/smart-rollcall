@@ -82,12 +82,11 @@
             <h3 class="text-lg font-bold text-gray-800 mb-3">駁回請假申請</h3>
             <p class="text-sm text-gray-600 mb-2">請選擇駁回理由，學生將會收到通知：</p>
             <select id="reject-reason-select" class="w-full border p-2 rounded mb-3">
-                <option value="佐證資料不足">佐證資料不足 (如：缺醫生證明)</option>
+                <option value="佐證資料不足">佐證資料不足</option>
                 <option value="理由不充分">理由不充分</option>
-                <option value="當天有重要考試">當天有重要考試，不予准假</option>
-                <option value="缺曠課過多">已缺曠過多，請注意出席率</option>
-                <option value="家長未同意">家長未簽名或未同意</option>
-                <option value="其他">其他 (請見面談)</option>
+                <option value="有考試不能請假">有考試不能請假</option>
+                <option value="已缺曠過多">已缺曠過多</option>
+                <option value="其他(找老師談)">其他(找老師談)</option>
             </select>
             <div class="flex justify-end gap-2 mt-4">
                 <button onclick="closeRejectModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm">取消</button>
@@ -112,7 +111,7 @@
                 <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl"><i class="fas fa-school"></i></div>
                 <h2 class="text-2xl font-bold text-gray-800">校園帳號登入</h2>
                 <p class="text-gray-500 text-sm mt-1">限 <span class="font-mono text-blue-600 bg-blue-50 px-1 rounded">@ppsh.ptc.edu.tw</span> 網域使用</p>
-                <p class="text-xs text-gray-400 mt-4">System Ver: 5.0 (Full Features)</p>
+                <p class="text-xs text-gray-400 mt-4">System Ver: 5.1 (Reason Updated)</p>
             </div>
             
             <button onclick="loginWithGoogle()" id="google-login-btn" class="w-full max-w-xs py-4 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl shadow-lg hover:bg-gray-50 transition flex items-center justify-center gap-3">
