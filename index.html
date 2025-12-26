@@ -319,14 +319,15 @@
         import { getFirestore, doc, collection, addDoc, updateDoc, setDoc, query, where, onSnapshot, Timestamp, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // === Firebase 配置 (請使用您提供的) ===
+        // === Firebase 配置 (已更新為 MyRollCall 專案) ===
         const firebaseConfig = {
-            apiKey: "AIzaSyAko3jZkh_OGTw7kqxFwhX5SRJtbNll0Cw",
-            authDomain: "roll-ppshclass.firebaseapp.com",
-            projectId: "roll-ppshclass",
-            storageBucket: "roll-ppshclass.firebasestorage.app",
-            messagingSenderId: "690929841439",
-            appId: "1:690929841439:web:9f3653ce07e64ba461ac2a"
+            apiKey: "AIzaSyDh06vfx4fW3kdosjRUOc9TaKidnp1gBjY",
+            authDomain: "myrollcall-5f4b1.firebaseapp.com",
+            projectId: "myrollcall-5f4b1",
+            storageBucket: "myrollcall-5f4b1.firebasestorage.app",
+            messagingSenderId: "328974301236",
+            appId: "1:328974301236:web:edab016e396641a670f261",
+            measurementId: "G-W7R50C6WQF"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -349,6 +350,8 @@
 
             if (user) {
                 // 檢查 Email 網域
+                // ⚠️ 如果需要測試個人帳號，請修改下方條件為: 
+                // if (user.email.endsWith('@ppsh.ptc.edu.tw') || user.email === '您的@gmail.com')
                 if (user.email.endsWith('@ppsh.ptc.edu.tw')) {
                     console.log("網域驗證成功:", user.email);
                     userInfo.innerText = user.email;
